@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  isApproved   Boolean  @default(false)
+  isAdmin      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  shelves      Shelf[]
+  statuses     ReadingStatus[]
+  reviews      Review[]
+}
+
+model Book {
+  id            String   @id @default(uuid())
+  title         String
+  filePath      String   @unique
+  format        String
+  addedDate     DateTime @default(now())
+  coverPath     String?
+  description   String?
+  goodreadsLink String?
+  seriesId      String?
+  seriesNumber  Float?
+  series        Series?  @relation(fields: [seriesId], references: [id])
+  authors       Author[] @relation("BookAuthor")
+  tags          Tag[]    @relation("BookTag")
+  shelves       Shelf[]  @relation("ShelfBook")
+  statuses      ReadingStatus[]
+  reviews       Review[]
+}
+
+model ReadingStatus {
+  id        String   @id @default(uuid())
+  userId    String
+  bookId    String
+  status    String   // READING, FINISHED, ABANDONED, PLAN_TO_READ
+  progress  Int      @default(0) // Percentage or page
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+  book      Book     @relation(fields: [bookId], references: [id])
+
+  @@unique([userId, bookId])
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  bookId    String
+  rating    Int?     // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+  book      Book     @relation(fields: [bookId], references: [id])
+
+  @@unique([userId, bookId])
+}
+
+model Author {
+  id    String @id @default(uuid())
+  name  String @unique
+  books Book[] @relation("BookAuthor")
+}
+
+model Series {
+  id    String @id @default(uuid())
+  name  String @unique
+  books Book[]
+}
+
+model Tag {
+  id    String @id @default(uuid())
+  name  String @unique
+  books Book[] @relation("BookTag")
+}
+
+model Shelf {
+  id     String @id @default(uuid())
+  name   String
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  books  Book[] @relation("ShelfBook")
+
+  @@unique([name, userId])
+}

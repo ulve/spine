@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    container_name: ebook-server
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=file:/app/data/app.db
+      - PORT=3000
+    volumes:
+      - ./data:/app/data
+      - ./books:/app/books
+    restart: always
+
+volumes:
+  data:
+  books:
