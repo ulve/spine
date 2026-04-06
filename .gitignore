@@ -8,6 +8,8 @@ build/
 # Local databases
 prisma/dev.db
 prisma/dev.db-journal
+books/
+data/
 
 # Environment variables
 .env
