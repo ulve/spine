@@ -26,16 +26,23 @@ async function main() {
   console.log('Starting eBook Server Backend...');
 
   // 2. Base Middleware
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
+  const explicitAllowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:3000', 'http://localhost:5173'];
+    : null;
   app.use(cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, same-origin in production)
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
+      // Allow requests with no origin (curl, mobile apps, server-to-server)
+      if (!origin) return callback(null, true);
+      // If ALLOWED_ORIGINS is explicitly configured, enforce it
+      if (explicitAllowedOrigins) {
+        if (explicitAllowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`CORS: origin ${origin} not allowed`));
+        }
       } else {
-        callback(new Error(`CORS: origin ${origin} not allowed`));
+        // No explicit list — allow all origins (self-hosted default)
+        callback(null, true);
       }
     },
     credentials: true,
