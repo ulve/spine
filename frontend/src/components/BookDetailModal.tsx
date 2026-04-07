@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Book, Review, ReadingStatus } from '../types';
 import { 
@@ -256,9 +257,10 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Summary</span>
                   <div className="prose prose-invert prose-sm max-w-none">
                     {book.description ? (
-                      <div className="text-muted-foreground/80 leading-relaxed text-base whitespace-pre-wrap">
-                        {book.description}
-                      </div>
+                      <div
+                        className="text-muted-foreground/80 leading-relaxed text-base [&_p]:mb-3 [&_p:last-child]:mb-0 [&_br]:block [&_b]:text-foreground/90 [&_i]:italic [&_em]:italic [&_strong]:text-foreground/90"
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(book.description) }}
+                      />
                     ) : (
                       <p className="text-muted-foreground/40 italic text-base">No description available for this book.</p>
                     )}
