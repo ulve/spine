@@ -107,12 +107,16 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         className="w-full max-w-2xl bg-secondary/90 border border-border rounded-3xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-6 border-b border-border">
           <h2 className="text-2xl font-bold tracking-tight">Edit Metadata</h2>

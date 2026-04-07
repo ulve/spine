@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Upload, File, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6,26 +6,34 @@ import { cn } from '../lib/utils';
 
 export const UploadPage: React.FC = () => {
   const { token } = useAuth();
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-      setStatus('idle');
+  useEffect(() => {
+    if (status !== 'idle') {
+      const timeout = setTimeout(() => setStatus('idle'), 5000);
+      return () => clearTimeout(timeout);
     }
+  }, [status]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    setFiles(selectedFiles);
+    setStatus('idle');
   };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return;
+    if (files.length === 0) return;
 
     setUploading(true);
     setStatus('idle');
     const formData = new FormData();
-    formData.append('file', file);
+    for (const file of files) {
+      formData.append('files', file);
+    }
 
     try {
       const response = await fetch('/api/upload', {
@@ -40,11 +48,13 @@ export const UploadPage: React.FC = () => {
       if (!response.ok) throw new Error(data.error || 'Failed to upload book');
 
       setStatus('success');
-      setMessage('Book uploaded successfully! It is being processed and will appear in your library shortly.');
-      setFile(null);
+      setMessage(
+        `${data.count || files.length} file${(data.count || files.length) === 1 ? '' : 's'} uploaded successfully. They are being processed and will appear in your library shortly.`
+      );
+      setFiles([]);
     } catch (error: any) {
       setStatus('error');
-      setMessage(error.message || 'Failed to upload book');
+      setMessage(error.message || 'Failed to upload books');
     } finally {
       setUploading(false);
     }
@@ -75,21 +85,32 @@ export const UploadPage: React.FC = () => {
                   type="file"
                   onChange={handleFileChange}
                   accept=".epub,.pdf"
+                  multiple
                   className="hidden"
                 />
                 <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                  {file ? <File className="w-10 h-10" /> : <Upload className="w-10 h-10" />}
+                  {files.length > 0 ? <File className="w-10 h-10" /> : <Upload className="w-10 h-10" />}
                 </div>
                 <div className="text-center space-y-2">
                   <p className="text-xl font-black uppercase tracking-tight">
-                    {file ? file.name : 'Select EPUB or PDF'}
+                    {files.length === 0
+                      ? 'Select EPUB or PDF files'
+                      : `${files.length} file${files.length === 1 ? '' : 's'} selected`}
                   </p>
                   <p className="text-muted-foreground text-sm font-medium">
-                    Drag and drop or click to browse
+                    Drag and drop or click to browse multiple files
                   </p>
                 </div>
               </div>
             </label>
+            {files.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {files.slice(0, 5).map((file) => (
+                  <div key={`${file.name}-${file.size}`}>{file.name}</div>
+                ))}
+                {files.length > 5 && <div>and {files.length - 5} more...</div>}
+              </div>
+            )}
           </div>
 
           <AnimatePresence mode="wait">
@@ -113,7 +134,7 @@ export const UploadPage: React.FC = () => {
 
           <button
             type="submit"
-            disabled={!file || uploading}
+            disabled={files.length === 0 || uploading}
             className="w-full bg-primary text-primary-foreground py-6 rounded-[1.5rem] font-black uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-4"
           >
             {uploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}

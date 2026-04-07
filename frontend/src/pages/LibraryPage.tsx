@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookCard } from '../components/BookCard';
 import { Book, BooksResponse, PaginationInfo } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Loader2, 
   ChevronLeft, 
@@ -13,7 +14,8 @@ import {
   List,
   SortAsc,
   ChevronDown,
-  Library
+  Library,
+  Bookmark
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -35,7 +37,16 @@ const sortOptions: SortOption[] = [
   { label: 'Series Number', sortBy: 'seriesNumber', sortOrder: 'asc' },
 ];
 
+const statusOptions = [
+  { label: 'All Statuses', value: '' },
+  { label: 'Plan to Read', value: 'PLAN_TO_READ' },
+  { label: 'Reading', value: 'READING' },
+  { label: 'Finished', value: 'FINISHED' },
+  { label: 'Abandoned', value: 'ABANDONED' },
+];
+
 export const LibraryPage: React.FC<LibraryPageProps> = ({ searchQuery = '' }) => {
+  const { token, isAuthenticated } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [books, setBooks] = useState<Book[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
@@ -50,6 +61,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ searchQuery = '' }) =>
   const authorId = searchParams.get('authorId');
   const seriesId = searchParams.get('seriesId');
   const tagId = searchParams.get('tagId');
+  const status = searchParams.get('status') || '';
 
   useEffect(() => {
     const fetchBooks = async () => {
@@ -65,8 +77,11 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ searchQuery = '' }) =>
         if (authorId) params.append('authorId', authorId);
         if (seriesId) params.append('seriesId', seriesId);
         if (tagId) params.append('tagId', tagId);
+        if (status) params.append('status', status);
 
-        const response = await fetch(`/api/books?${params.toString()}`);
+        const response = await fetch(`/api/books?${params.toString()}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const data = await response.json();
 
         if (!response.ok) {
@@ -84,16 +99,34 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ searchQuery = '' }) =>
 
     const timeoutId = setTimeout(fetchBooks, 300); // Debounce search
     return () => clearTimeout(timeoutId);
-  }, [page, searchQuery, authorId, seriesId, tagId, currentSort]);
+  }, [page, searchQuery, authorId, seriesId, tagId, status, currentSort, token]);
 
   // Reset to page 1 when search or filters change
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, authorId, seriesId, tagId, currentSort]);
+  }, [searchQuery, authorId, seriesId, tagId, status, currentSort]);
+
+  useEffect(() => {
+    if (!isAuthenticated && status) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('status');
+      setSearchParams(nextParams);
+    }
+  }, [isAuthenticated, searchParams, setSearchParams, status]);
 
   const clearFilters = () => {
     setSearchParams({});
     setPage(1);
+  };
+
+  const handleStatusChange = (nextStatus: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextStatus) {
+      nextParams.set('status', nextStatus);
+    } else {
+      nextParams.delete('status');
+    }
+    setSearchParams(nextParams);
   };
 
   const container = {
@@ -129,7 +162,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ searchQuery = '' }) =>
               <Library className="w-10 h-10 text-primary" />
               {searchQuery ? `Search` : 'Library'}
             </h1>
-            {(authorId || seriesId || tagId) && (
+            {(authorId || seriesId || tagId || status) && (
               <button 
                 onClick={clearFilters}
                 className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors border border-primary/20"
@@ -196,6 +229,23 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ searchQuery = '' }) =>
             </AnimatePresence>
           </div>
 
+          {isAuthenticated && (
+            <div className="flex items-center gap-2 bg-secondary/50 border border-border px-4 py-2 rounded-xl">
+              <Bookmark className="w-4 h-4 text-primary" />
+              <select
+                value={status}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                className="bg-transparent text-xs font-black uppercase tracking-wider outline-none"
+              >
+                {statusOptions.map((option) => (
+                  <option key={option.value || 'all'} value={option.value} className="bg-[#161B22] text-foreground">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* View Toggle */}
           <div className="flex items-center bg-secondary/50 p-1 rounded-xl border border-border">
             <button
@@ -247,7 +297,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ searchQuery = '' }) =>
       <AnimatePresence mode="wait">
         {books.length > 0 ? (
           <motion.div
-            key={viewMode + searchQuery + (authorId || '') + (seriesId || '') + (tagId || '') + page + currentSort.label}
+            key={viewMode + searchQuery + (authorId || '') + (seriesId || '') + (tagId || '') + status + page + currentSort.label}
             variants={container}
             initial="hidden"
             animate="show"

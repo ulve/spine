@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { configureApiClient } from '../lib/apiClient';
 
 interface User {
   id: string;
@@ -21,13 +22,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
+  const isTokenExpired = (token: string): boolean => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.exp * 1000 < Date.now();
+    } catch {
+      return true;
+    }
+  };
+
   useEffect(() => {
     const savedToken = localStorage.getItem('auth_token');
     const savedUser = localStorage.getItem('auth_user');
-    if (savedToken && savedUser) {
+    if (savedToken && savedUser && !isTokenExpired(savedToken)) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
+    } else if (savedToken) {
+      // Token exists but is expired — clear it
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
     }
+  }, []);
+
+  const logout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
   }, []);
 
   const login = (newToken: string, newUser: User) => {
@@ -37,12 +58,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('auth_user', JSON.stringify(newUser));
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-  };
+  // Wire up the central API client whenever token or logout changes
+  useEffect(() => {
+    configureApiClient({
+      getToken: () => localStorage.getItem('auth_token'),
+      setToken: (t) => {
+        setToken(t);
+        localStorage.setItem('auth_token', t);
+      },
+      onUnauthorized: logout,
+    });
+  }, [logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>

@@ -145,7 +145,18 @@ router.post('/admin/users/:id/approve', authenticateToken, requireAdmin, async (
 
 router.delete('/admin/users/:id', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        await prisma.user.delete({ where: { id: req.params.id as string } });
+        const targetId = req.params.id as string;
+        const targetUser = await prisma.user.findUnique({ where: { id: targetId } });
+        if (!targetUser) return res.status(404).json({ error: 'User not found' });
+
+        if (targetUser.isAdmin) {
+            const adminCount = await prisma.user.count({ where: { isAdmin: true } });
+            if (adminCount <= 1) {
+                return res.status(400).json({ error: 'Cannot delete the last admin account' });
+            }
+        }
+
+        await prisma.user.delete({ where: { id: targetId } });
         res.status(204).end();
     } catch (err) {
         console.error('Admin delete user error:', err);
@@ -178,6 +189,24 @@ router.post('/books/:id/status', authenticateToken, async (req, res) => {
         res.json(result);
     } catch (err) {
         console.error('Status update error:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.delete('/books/:id/status', authenticateToken, async (req, res) => {
+    try {
+        const userId = getRequestUser(req).userId;
+        const bookId = req.params.id as string;
+        await prisma.readingStatus.delete({
+            where: { userId_bookId: { userId, bookId } }
+        });
+        res.status(204).end();
+    } catch (err) {
+        const prismaError = err as { code?: string };
+        if (prismaError.code === 'P2025') {
+            return res.status(404).json({ error: 'Reading status not found' });
+        }
+        console.error('Status delete error:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -312,7 +341,7 @@ router.delete('/shelves/:id/books/:bookId', authenticateToken, async (req, res) 
 
 // --- EXISTING ROUTES UPDATED ---
 
-router.get('/books', async (req: Request, res: Response) => {
+router.get('/books', attachOptionalUser, async (req: Request, res: Response) => {
   try {
     const page = parsePaginationNumber(req.query['page'], 1, { min: 1, max: 10000 });
     const limit = parsePaginationNumber(req.query['limit'], 20, { min: 1, max: 100 });
@@ -321,8 +350,10 @@ router.get('/books', async (req: Request, res: Response) => {
     const authorId = normalizeString(req.query['authorId']);
     const seriesId = normalizeString(req.query['seriesId']);
     const tagId = normalizeString(req.query['tagId']);
+    const status = normalizeString(req.query['status']);
     const sortBy = (req.query['sortBy'] as string) || 'addedDate';
     const sortOrder = (req.query['sortOrder'] as string) || 'desc';
+    const currentUserId = (req as Partial<AuthenticatedRequest>).user?.userId;
 
     if (!BOOK_SORT_FIELDS.has(sortBy)) {
       return res.status(400).json({ error: 'Invalid sortBy value' });
@@ -332,7 +363,15 @@ router.get('/books', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid sortOrder value' });
     }
 
-    const where: any = {};
+    if (status && !READING_STATUSES.has(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
+    if (status && !currentUserId) {
+      return res.status(401).json({ error: 'Authentication required for status filtering' });
+    }
+
+    const where: Record<string, unknown> = {};
     if (q) {
       where.OR = [
         { title: { contains: q } },
@@ -343,11 +382,19 @@ router.get('/books', async (req: Request, res: Response) => {
     if (authorId) where.authors = { some: { id: authorId } };
     if (seriesId) where.seriesId = seriesId;
     if (tagId) where.tags = { some: { id: tagId } };
+    if (status && currentUserId) {
+      where.statuses = { some: { userId: currentUserId, status } };
+    }
 
     const [books, total] = await Promise.all([
       prisma.book.findMany({
         where,
-        include: { authors: true, series: true, tags: true },
+        include: {
+          authors: true,
+          series: true,
+          tags: true,
+          statuses: currentUserId ? { where: { userId: currentUserId } } : undefined,
+        },
         orderBy: { [sortBy]: sortOrder },
         skip,
         take: limit,
@@ -436,25 +483,57 @@ router.get('/download/:id', async (req: Request, res: Response) => {
     });
 
     if (!book) return res.status(404).json({ error: 'Book not found' });
-    if (!await fs.pathExists(book.filePath)) return res.status(404).json({ error: 'File not found on disk' });
+
+    // Prevent path traversal: ensure the file is within the books directory
+    const resolvedPath = path.resolve(book.filePath);
+    const resolvedBooksDir = path.resolve(BOOKS_DIR);
+    if (!resolvedPath.startsWith(resolvedBooksDir + path.sep) && resolvedPath !== resolvedBooksDir) {
+      console.error(`Path traversal attempt blocked: ${book.filePath}`);
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!await fs.pathExists(resolvedPath)) return res.status(404).json({ error: 'File not found on disk' });
 
     const authorNames = book.authors.map(a => a.name).join(', ') || 'Unknown Author';
-    const extension = path.extname(book.filePath);
+    const extension = path.extname(resolvedPath);
     const downloadName = `${book.title} - ${authorNames}${extension}`;
 
-    res.download(book.filePath, downloadName);
+    res.download(resolvedPath, downloadName);
   } catch (error) {
     console.error('Download error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/upload', authenticateToken, requireAdmin, upload.single('file'), async (req: Request, res: Response) => {
+router.post(
+  '/upload',
+  authenticateToken,
+  requireAdmin,
+  upload.fields([
+    { name: 'file', maxCount: 1 },
+    { name: 'files', maxCount: 100 },
+  ]),
+  async (req: Request, res: Response) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const filePath = req.file.path;
-    scanner.processFile(filePath).catch(err => console.error('Error processing uploaded file:', err));
-    res.status(201).json({ message: 'File uploaded successfully', filePath });
+    const uploadedFiles = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const files = [
+      ...(uploadedFiles?.['files'] || []),
+      ...(uploadedFiles?.['file'] || []),
+    ];
+
+    if (files.length === 0) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    for (const file of files) {
+      scanner.processFile(file.path).catch((err) => console.error('Error processing uploaded file:', err));
+    }
+
+    res.status(201).json({
+      message: `${files.length} file${files.length === 1 ? '' : 's'} uploaded successfully`,
+      count: files.length,
+      filePaths: files.map((file) => file.path),
+    });
   } catch (error) {
     console.error('Upload book error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -497,7 +576,7 @@ router.patch('/books/:id', authenticateToken, requireAdmin, async (req: Request,
     const id = req.params.id as string;
     const { title, authors, seriesName, seriesNumber, tags, description, goodreadsLink } = req.body;
 
-    const data: any = {};
+    const data: Record<string, unknown> = {};
     const normalizedTitle = normalizeString(title);
     if (title !== undefined && !normalizedTitle) {
       return res.status(400).json({ error: 'Title cannot be empty' });
@@ -564,6 +643,9 @@ router.patch('/books/:id', authenticateToken, requireAdmin, async (req: Request,
         connectOrCreate: normalizedTags.map((name: string) => ({ where: { name }, create: { name } })),
       };
     }
+
+    const existingBook = await prisma.book.findUnique({ where: { id } });
+    if (!existingBook) return res.status(404).json({ error: 'Book not found' });
 
     const updatedBook = await prisma.book.update({
       where: { id },

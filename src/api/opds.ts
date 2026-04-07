@@ -71,25 +71,47 @@ router.get('/', (req: Request, res: Response) => {
   res.send(feed.end({ prettyPrint: true }));
 });
 
+const OPDS_PAGE_SIZE = 30;
+
+function parsePage(raw: unknown): number {
+  const n = parseInt(String(raw), 10);
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
 // Recent books feed
 router.get('/recent', async (req: Request, res: Response) => {
   const baseUrl = getBaseUrl(req);
-  const books = await prisma.book.findMany({
-    take: 50,
-    orderBy: { addedDate: 'desc' },
-    include: { authors: true, series: true, tags: true },
-  });
+  const page = parsePage(req.query['page']);
+  const skip = (page - 1) * OPDS_PAGE_SIZE;
+
+  const [books, total] = await Promise.all([
+    prisma.book.findMany({
+      take: OPDS_PAGE_SIZE,
+      skip,
+      orderBy: { addedDate: 'desc' },
+      include: { authors: true, series: true, tags: true },
+    }),
+    prisma.book.count(),
+  ]);
+
+  const totalPages = Math.ceil(total / OPDS_PAGE_SIZE);
 
   const feed = createFeed('Recently Added', `${baseUrl}/opds/recent`);
-  feed.ele('link', { rel: 'self', href: `${baseUrl}/opds/recent`, type: 'application/atom+xml;profile=opds-catalog;kind=navigation' }).up();
+  feed.ele('link', { rel: 'self', href: `${baseUrl}/opds/recent?page=${page}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
   feed.ele('link', { rel: 'start', href: `${baseUrl}/opds`, type: 'application/atom+xml;profile=opds-catalog;kind=navigation' }).up();
+  if (page > 1) {
+    feed.ele('link', { rel: 'previous', href: `${baseUrl}/opds/recent?page=${page - 1}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+  }
+  if (page < totalPages) {
+    feed.ele('link', { rel: 'next', href: `${baseUrl}/opds/recent?page=${page + 1}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+  }
 
   for (const book of books) {
     const entry = feed.ele('entry');
     entry.ele('title').txt(book.title).up();
     entry.ele('id').txt(`urn:uuid:${book.id}`).up();
     entry.ele('updated').txt(book.addedDate.toISOString()).up();
-    
+
     for (const author of book.authors) {
       entry.ele('author').ele('name').txt(author.name).up().up();
     }
@@ -98,27 +120,25 @@ router.get('/recent', async (req: Request, res: Response) => {
       entry.ele('content', { type: 'text' }).txt(`Series: ${book.series.name}${book.seriesNumber ? ` (Book ${book.seriesNumber})` : ''}`).up();
     }
 
-    // Cover link
     if (book.coverPath) {
-      const coverFilename = book.coverPath.split('/').pop();
-      entry.ele('link', { 
-        rel: 'http://opds-spec.org/image', 
-        href: `${baseUrl}/api/covers/${coverFilename}`, 
-        type: 'image/jpeg' 
+      const coverFilename = book.coverPath.split('/').pop() ?? '';
+      entry.ele('link', {
+        rel: 'http://opds-spec.org/image',
+        href: `${baseUrl}/api/covers/${coverFilename}`,
+        type: 'image/jpeg'
       }).up();
-      entry.ele('link', { 
-        rel: 'http://opds-spec.org/image/thumbnail', 
-        href: `${baseUrl}/api/covers/${coverFilename}`, 
-        type: 'image/jpeg' 
+      entry.ele('link', {
+        rel: 'http://opds-spec.org/image/thumbnail',
+        href: `${baseUrl}/api/covers/${coverFilename}`,
+        type: 'image/jpeg'
       }).up();
     }
 
-    // Download link
     const mimeType = book.format === 'epub' ? 'application/epub+zip' : 'application/pdf';
-    entry.ele('link', { 
-      rel: 'http://opds-spec.org/acquisition', 
-      href: `${baseUrl}/api/download/${book.id}`, 
-      type: mimeType 
+    entry.ele('link', {
+      rel: 'http://opds-spec.org/acquisition',
+      href: `${baseUrl}/api/download/${book.id}`,
+      type: mimeType
     }).up();
   }
 
@@ -154,30 +174,42 @@ router.get('/authors/:id', async (req: Request, res: Response) => {
     const baseUrl = getBaseUrl(req);
     const { id } = req.params;
     if (typeof id !== 'string') return res.status(400).send('Invalid ID');
-    const author = await prisma.author.findUnique({
-        where: { id },
-        include: { books: { include: { authors: true, series: true, tags: true }, orderBy: { title: 'asc' } } }
-    });
+    const page = parsePage(req.query['page']);
+    const skip = (page - 1) * OPDS_PAGE_SIZE;
 
+    const author = await prisma.author.findUnique({ where: { id } });
     if (!author) return res.status(404).send('Author not found');
 
+    const [books, total] = await Promise.all([
+        prisma.book.findMany({
+            where: { authors: { some: { id } } },
+            include: { authors: true, series: true, tags: true },
+            orderBy: { title: 'asc' },
+            take: OPDS_PAGE_SIZE,
+            skip,
+        }),
+        prisma.book.count({ where: { authors: { some: { id } } } }),
+    ]);
+    const totalPages = Math.ceil(total / OPDS_PAGE_SIZE);
+
     const feed = createFeed(`Books by ${author.name}`, `${baseUrl}/opds/authors/${id}`);
-    
-    for (const book of author.books) {
+    feed.ele('link', { rel: 'self', href: `${baseUrl}/opds/authors/${id}?page=${page}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+    feed.ele('link', { rel: 'start', href: `${baseUrl}/opds`, type: 'application/atom+xml;profile=opds-catalog;kind=navigation' }).up();
+    if (page > 1) feed.ele('link', { rel: 'previous', href: `${baseUrl}/opds/authors/${id}?page=${page - 1}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+    if (page < totalPages) feed.ele('link', { rel: 'next', href: `${baseUrl}/opds/authors/${id}?page=${page + 1}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+
+    for (const book of books) {
         const entry = feed.ele('entry');
         entry.ele('title').txt(book.title).up();
         entry.ele('id').txt(`urn:uuid:${book.id}`).up();
         entry.ele('updated').txt(book.addedDate.toISOString()).up();
-        
         for (const a of book.authors) {
           entry.ele('author').ele('name').txt(a.name).up().up();
         }
-
         if (book.coverPath) {
-          const coverFilename = book.coverPath.split('/').pop();
+          const coverFilename = book.coverPath.split('/').pop() ?? '';
           entry.ele('link', { rel: 'http://opds-spec.org/image', href: `${baseUrl}/api/covers/${coverFilename}`, type: 'image/jpeg' }).up();
         }
-
         const mimeType = book.format === 'epub' ? 'application/epub+zip' : 'application/pdf';
         entry.ele('link', { rel: 'http://opds-spec.org/acquisition', href: `${baseUrl}/api/download/${book.id}`, type: mimeType }).up();
     }
@@ -195,7 +227,7 @@ router.get('/series', async (req: Request, res: Response) => {
     });
 
     const feed = createFeed('Series', `${baseUrl}/opds/series`);
-    
+
     for (const s of series) {
         feed.ele('entry')
             .ele('title').txt(`${s.name} (${s._count.books})`).up()
@@ -213,30 +245,42 @@ router.get('/series/:id', async (req: Request, res: Response) => {
     const baseUrl = getBaseUrl(req);
     const { id } = req.params;
     if (typeof id !== 'string') return res.status(400).send('Invalid ID');
-    const series = await prisma.series.findUnique({
-        where: { id },
-        include: { books: { include: { authors: true, series: true, tags: true }, orderBy: { seriesNumber: 'asc' } } }
-    });
+    const page = parsePage(req.query['page']);
+    const skip = (page - 1) * OPDS_PAGE_SIZE;
 
+    const series = await prisma.series.findUnique({ where: { id } });
     if (!series) return res.status(404).send('Series not found');
 
+    const [books, total] = await Promise.all([
+        prisma.book.findMany({
+            where: { seriesId: id },
+            include: { authors: true, series: true, tags: true },
+            orderBy: { seriesNumber: 'asc' },
+            take: OPDS_PAGE_SIZE,
+            skip,
+        }),
+        prisma.book.count({ where: { seriesId: id } }),
+    ]);
+    const totalPages = Math.ceil(total / OPDS_PAGE_SIZE);
+
     const feed = createFeed(`Series: ${series.name}`, `${baseUrl}/opds/series/${id}`);
-    
-    for (const book of series.books) {
+    feed.ele('link', { rel: 'self', href: `${baseUrl}/opds/series/${id}?page=${page}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+    feed.ele('link', { rel: 'start', href: `${baseUrl}/opds`, type: 'application/atom+xml;profile=opds-catalog;kind=navigation' }).up();
+    if (page > 1) feed.ele('link', { rel: 'previous', href: `${baseUrl}/opds/series/${id}?page=${page - 1}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+    if (page < totalPages) feed.ele('link', { rel: 'next', href: `${baseUrl}/opds/series/${id}?page=${page + 1}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+
+    for (const book of books) {
         const entry = feed.ele('entry');
         entry.ele('title').txt(book.title).up();
         entry.ele('id').txt(`urn:uuid:${book.id}`).up();
         entry.ele('updated').txt(book.addedDate.toISOString()).up();
-        
         for (const a of book.authors) {
           entry.ele('author').ele('name').txt(a.name).up().up();
         }
-
         if (book.coverPath) {
-          const coverFilename = book.coverPath.split('/').pop();
+          const coverFilename = book.coverPath.split('/').pop() ?? '';
           entry.ele('link', { rel: 'http://opds-spec.org/image', href: `${baseUrl}/api/covers/${coverFilename}`, type: 'image/jpeg' }).up();
         }
-
         const mimeType = book.format === 'epub' ? 'application/epub+zip' : 'application/pdf';
         entry.ele('link', { rel: 'http://opds-spec.org/acquisition', href: `${baseUrl}/api/download/${book.id}`, type: mimeType }).up();
     }
@@ -254,7 +298,7 @@ router.get('/tags', async (req: Request, res: Response) => {
     });
 
     const feed = createFeed('Tags', `${baseUrl}/opds/tags`);
-    
+
     for (const tag of tags) {
         feed.ele('entry')
             .ele('title').txt(`${tag.name} (${tag._count.books})`).up()
@@ -272,30 +316,42 @@ router.get('/tags/:id', async (req: Request, res: Response) => {
     const baseUrl = getBaseUrl(req);
     const { id } = req.params;
     if (typeof id !== 'string') return res.status(400).send('Invalid ID');
-    const tag = await prisma.tag.findUnique({
-        where: { id },
-        include: { books: { include: { authors: true, series: true, tags: true }, orderBy: { title: 'asc' } } }
-    });
+    const page = parsePage(req.query['page']);
+    const skip = (page - 1) * OPDS_PAGE_SIZE;
 
+    const tag = await prisma.tag.findUnique({ where: { id } });
     if (!tag) return res.status(404).send('Tag not found');
 
+    const [books, total] = await Promise.all([
+        prisma.book.findMany({
+            where: { tags: { some: { id } } },
+            include: { authors: true, series: true, tags: true },
+            orderBy: { title: 'asc' },
+            take: OPDS_PAGE_SIZE,
+            skip,
+        }),
+        prisma.book.count({ where: { tags: { some: { id } } } }),
+    ]);
+    const totalPages = Math.ceil(total / OPDS_PAGE_SIZE);
+
     const feed = createFeed(`Books tagged with ${tag.name}`, `${baseUrl}/opds/tags/${id}`);
-    
-    for (const book of tag.books) {
+    feed.ele('link', { rel: 'self', href: `${baseUrl}/opds/tags/${id}?page=${page}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+    feed.ele('link', { rel: 'start', href: `${baseUrl}/opds`, type: 'application/atom+xml;profile=opds-catalog;kind=navigation' }).up();
+    if (page > 1) feed.ele('link', { rel: 'previous', href: `${baseUrl}/opds/tags/${id}?page=${page - 1}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+    if (page < totalPages) feed.ele('link', { rel: 'next', href: `${baseUrl}/opds/tags/${id}?page=${page + 1}`, type: 'application/atom+xml;profile=opds-catalog;kind=acquisition' }).up();
+
+    for (const book of books) {
         const entry = feed.ele('entry');
         entry.ele('title').txt(book.title).up();
         entry.ele('id').txt(`urn:uuid:${book.id}`).up();
         entry.ele('updated').txt(book.addedDate.toISOString()).up();
-        
         for (const a of book.authors) {
           entry.ele('author').ele('name').txt(a.name).up().up();
         }
-
         if (book.coverPath) {
-          const coverFilename = book.coverPath.split('/').pop();
+          const coverFilename = book.coverPath.split('/').pop() ?? '';
           entry.ele('link', { rel: 'http://opds-spec.org/image', href: `${baseUrl}/api/covers/${coverFilename}`, type: 'image/jpeg' }).up();
         }
-
         const mimeType = book.format === 'epub' ? 'application/epub+zip' : 'application/pdf';
         entry.ele('link', { rel: 'http://opds-spec.org/acquisition', href: `${baseUrl}/api/download/${book.id}`, type: mimeType }).up();
     }

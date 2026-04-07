@@ -57,10 +57,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-72 bg-[#0F1626] border-r border-white/5 p-8 fixed h-full z-40">
         <Link to="/" className="flex items-center gap-3 px-2 mb-12">
-          <div className="w-10 h-10 overflow-hidden rounded-xl shadow-lg shadow-primary/20">
-            <img src="/logo.png" alt="Spine Logo" className="w-full h-full object-cover" />
+          <div className="w-16 h-16 overflow-hidden rounded-xl shadow-lg shadow-primary/20">
+            <img src="/logo.png" alt="Spine Logo" className="w-full h-full object-cover scale-[2.5] origin-center" />
           </div>
-          <span className="text-2xl font-black tracking-tighter uppercase tracking-[0.1em]">Spine</span>
         </Link>
 
         <nav className="flex-1 space-y-2">
@@ -112,10 +111,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
       {/* Mobile Header */}
       <header className="md:hidden bg-[#0F1626] border-b border-white/5 p-4 sticky top-0 z-50 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3">
-          <div className="w-8 h-8 overflow-hidden rounded-lg">
-            <img src="/logo.png" alt="Spine Logo" className="w-full h-full object-cover" />
+          <div className="w-10 h-10 overflow-hidden rounded-lg">
+            <img src="/logo.png" alt="Spine Logo" className="w-full h-full object-cover scale-[2.5] origin-center" />
           </div>
-          <span className="text-lg font-black tracking-tighter uppercase">Spine</span>
         </Link>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-muted-foreground">
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}

@@ -152,12 +152,16 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md"
+      onClick={onClose}
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
         className="w-full max-w-5xl bg-[#0F1626] border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Left: Cover & Personal Status */}
         <div className="w-full md:w-80 bg-black/20 flex flex-col p-8 border-b md:border-b-0 md:border-r border-white/10 shrink-0">
