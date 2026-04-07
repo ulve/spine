@@ -229,7 +229,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto relative">
             <div className="p-8 space-y-12">
               {/* Metadata & Summary */}
               <div className="space-y-8">
@@ -248,7 +248,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Added Date</span>
                     <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground bg-white/5 px-4 py-2 rounded-xl border border-white/5 w-fit">
                       <Calendar className="w-4 h-4" />
-                      {new Date(book.addedDate).toLocaleDateString()}
+                      {new Date(book.addedDate).toISOString().split('T')[0]}
                     </div>
                   </div>
                 </div>
@@ -367,8 +367,11 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
             </div>
           </div>
 
+          {/* Scroll fade indicator */}
+          <div className="sticky bottom-0 h-8 bg-gradient-to-t from-[#0F1626] to-transparent pointer-events-none" />
+
           {/* Footer Actions */}
-          <div className="p-6 border-t border-white/10 bg-black/20 flex flex-wrap gap-4">
+          <div className="p-6 border-t border-white/10 bg-[#0F1626] flex flex-wrap gap-4">
             <button
               onClick={handleDownload}
               className="flex-1 min-w-[150px] bg-primary text-primary-foreground hover:opacity-90 px-6 py-3 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-lg shadow-primary/20"

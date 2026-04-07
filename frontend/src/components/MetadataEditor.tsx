@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Book } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Loader2, Tag as TagIcon, Plus, XCircle } from 'lucide-react';
+import { X, Save, Loader2 } from 'lucide-react';
 
 interface MetadataEditorProps {
   book: Book;
@@ -10,11 +10,103 @@ interface MetadataEditorProps {
   onUpdate: (updatedBook: Book) => void;
 }
 
+interface AutocompleteProps {
+  value: string;
+  onChange: (val: string) => void;
+  suggestions: string[];
+  placeholder?: string;
+  className?: string;
+  // If true, value is comma-separated and autocomplete applies to the last token
+  multiToken?: boolean;
+}
+
+const Autocomplete: React.FC<AutocompleteProps> = ({ value, onChange, suggestions, placeholder, className, multiToken }) => {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const currentToken = multiToken
+    ? value.split(',').pop()?.trim() ?? ''
+    : value.trim();
+
+  const filtered = currentToken.length > 0
+    ? suggestions.filter(s => s.toLowerCase().includes(currentToken.toLowerCase()) && s.toLowerCase() !== currentToken.toLowerCase())
+    : [];
+
+  const handleSelect = (suggestion: string) => {
+    if (multiToken) {
+      const parts = value.split(',');
+      parts[parts.length - 1] = ' ' + suggestion;
+      onChange(parts.join(',').replace(/^\s*,/, '').trimStart());
+    } else {
+      onChange(suggestion);
+    }
+    setOpen(false);
+    setActiveIndex(-1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open || filtered.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex(i => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(i => Math.max(i - 1, -1));
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      handleSelect(filtered[activeIndex]);
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onChange={e => { onChange(e.target.value); setOpen(true); setActiveIndex(-1); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleKeyDown}
+        className={className}
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 top-full mt-1 w-full bg-[#0F1626] border border-white/10 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+          {filtered.slice(0, 10).map((s, i) => (
+            <li
+              key={s}
+              onMouseDown={() => handleSelect(s)}
+              className={`px-4 py-2 text-sm cursor-pointer transition-colors ${i === activeIndex ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/5 hover:text-foreground'}`}
+            >
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, onUpdate }) => {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [authorSuggestions, setAuthorSuggestions] = useState<string[]>([]);
+  const [seriesSuggestions, setSeriesSuggestions] = useState<string[]>([]);
+
   const [formData, setFormData] = useState({
     title: book.title,
     authors: book.authors.map(a => a.name).join(', '),
@@ -29,6 +121,16 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
   const [embedCover, setEmbedCover] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
 
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/authors').then(r => r.json()),
+      fetch('/api/series').then(r => r.json()),
+    ]).then(([authors, series]) => {
+      setAuthorSuggestions(authors.map((a: { name: string }) => a.name));
+      setSeriesSuggestions(series.map((s: { name: string }) => s.name));
+    }).catch(() => {});
+  }, []);
+
   const handleCoverUpload = async (): Promise<Book | null> => {
     if (!coverFile) return null;
     setCoverUploading(true);
@@ -41,19 +143,16 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
     try {
       const response = await fetch(`/api/books/${book.id}/cover`, {
         method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: uploadData
       });
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to upload cover');
-
       setCoverFile(null);
       return data;
-    } catch (err: any) {
-      const msg = err.message || 'Failed to upload cover';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to upload cover';
       setError(msg);
       throw new Error(msg);
     } finally {
@@ -67,12 +166,8 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
     setError('');
 
     try {
-      // 1. Upload cover first if selected
-      if (coverFile) {
-        await handleCoverUpload();
-      }
+      if (coverFile) await handleCoverUpload();
 
-      // 2. Update metadata
       const payload = {
         title: formData.title,
         authors: formData.authors.split(',').map(s => s.trim()).filter(Boolean),
@@ -85,10 +180,7 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
 
       const response = await fetch(`/api/books/${book.id}`, {
         method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
 
@@ -97,14 +189,14 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
 
       onUpdate(data);
       onClose();
-    } catch (err: any) {
-      if (!error) {
-        setError(err.message || 'Failed to update metadata');
-      }
+    } catch (err: unknown) {
+      if (!error) setError(err instanceof Error ? err.message : 'Failed to update metadata');
     } finally {
       setLoading(false);
     }
   };
+
+  const inputClass = "w-full bg-background/50 border border-border rounded-xl py-2 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all";
 
   return (
     <div
@@ -171,39 +263,40 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
                   type="text"
                   value={formData.title}
                   onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full bg-background/50 border border-border rounded-xl py-2 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                  className={inputClass}
                   required
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Authors (comma separated)</label>
-                <input
-                  type="text"
+                <Autocomplete
                   value={formData.authors}
-                  onChange={e => setFormData(prev => ({ ...prev, authors: e.target.value }))}
-                  className="w-full bg-background/50 border border-border rounded-xl py-2 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                  onChange={val => setFormData(prev => ({ ...prev, authors: val }))}
+                  suggestions={authorSuggestions}
+                  multiToken
+                  className={inputClass}
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-medium text-muted-foreground">Series</label>
-                <input
-                  type="text"
+                <Autocomplete
                   value={formData.series}
-                  onChange={e => setFormData(prev => ({ ...prev, series: e.target.value }))}
-                  className="w-full bg-background/50 border border-border rounded-xl py-2 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                  onChange={val => setFormData(prev => ({ ...prev, series: val }))}
+                  suggestions={seriesSuggestions}
+                  className={inputClass}
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-medium text-muted-foreground">Series Number</label>
                 <input
                   type="number"
                   step="0.1"
                   value={formData.seriesNumber}
                   onChange={e => setFormData(prev => ({ ...prev, seriesNumber: e.target.value }))}
-                  className="w-full bg-background/50 border border-border rounded-xl py-2 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                  className={inputClass}
                 />
               </div>
 
@@ -213,7 +306,7 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
                   type="text"
                   value={formData.tags}
                   onChange={e => setFormData(prev => ({ ...prev, tags: e.target.value }))}
-                  className="w-full bg-background/50 border border-border rounded-xl py-2 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                  className={inputClass}
                 />
               </div>
 
@@ -224,7 +317,7 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
                   placeholder="https://www.goodreads.com/book/show/..."
                   value={formData.goodreadsLink}
                   onChange={e => setFormData(prev => ({ ...prev, goodreadsLink: e.target.value }))}
-                  className="w-full bg-background/50 border border-border rounded-xl py-2 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                  className={inputClass}
                 />
               </div>
 
@@ -234,7 +327,7 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
                   rows={4}
                   value={formData.description}
                   onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full bg-background/50 border border-border rounded-xl py-2 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all resize-none"
+                  className={`${inputClass} resize-none`}
                 />
               </div>
             </div>
@@ -252,7 +345,7 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, o
           <button
             form="metadata-form"
             type="submit"
-            disabled={loading}
+            disabled={loading || coverUploading}
             className="bg-primary text-primary-foreground px-8 py-2 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-primary/20"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}

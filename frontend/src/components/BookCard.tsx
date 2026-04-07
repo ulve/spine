@@ -119,85 +119,77 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
     <>
       <motion.div
         onClick={() => setIsShowingDetails(true)}
-        className={cn(
-          "group relative bg-[#0F1626] border border-white/10 rounded-2xl overflow-hidden transition-all hover:shadow-2xl hover:shadow-primary/5 hover:border-primary/50 flex flex-col h-full cursor-pointer"
-        )}
+        className="group relative aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 hover:border-primary/50 transition-all hover:shadow-2xl hover:shadow-primary/5 cursor-pointer bg-[#0F1626]"
       >
-        {/* Image Container */}
-        <div className="relative aspect-[2/3] overflow-hidden bg-white/5">
-          {coverUrl ? (
-            <img
-              src={coverUrl}
-              alt={book.title}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground/20">
-              <BookIcon className="w-12 h-12" />
-            </div>
-          )}
-          
-          {/* Action Overlay */}
-          <div className={cn(
-            "absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-4 gap-3 transition-opacity duration-300 z-20",
-            "opacity-0 group-hover:opacity-100"
-          )}>
-            <div className="flex gap-2">
-              <button
-                onClick={handleDownload}
-                className="flex-1 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold py-2 rounded-xl flex items-center justify-center gap-2 transition-colors relative z-30"
-              >
-                <Download className="w-3 h-3" />
-                Download
-              </button>
-              {book.goodreadsLink && (
-                <button
-                  onClick={openGoodreads}
-                  className="bg-amber-500/20 hover:bg-amber-500/40 text-amber-500 p-2 rounded-xl transition-all relative z-30"
-                  title="View on Goodreads"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                </button>
-              )}
-              {canEdit && (
-                <button
-                  onClick={handleEdit}
-                  className="bg-primary hover:opacity-90 text-primary-foreground p-2 rounded-xl transition-opacity relative z-30"
-                >
-                  <Edit3 className="w-3 h-3" />
-                </button>
-              )}
-            </div>
+        {/* Cover */}
+        {coverUrl ? (
+          <img
+            src={coverUrl}
+            alt={book.title}
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/20">
+            <BookIcon className="w-12 h-12" />
           </div>
-          
-          <div className="absolute top-3 right-3 px-2 py-1 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-widest z-10">
-            {book.format}
-          </div>
+        )}
+
+        {/* Format badge */}
+        <div className="absolute top-3 right-3 px-2 py-1 rounded-lg bg-black/50 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-widest z-10">
+          {book.format}
         </div>
 
-        {/* Metadata Section */}
-        <div className="p-4 flex flex-col gap-2 flex-grow">
-          <div>
-            <h3 className="font-bold leading-tight group-hover:text-primary transition-colors line-clamp-2 tracking-tight text-sm">
-              {book.title}
-            </h3>
-            <p className="text-muted-foreground truncate text-[10px] mt-0.5">
-              {authors}
-            </p>
-          </div>
-          
+        {/* Always-visible title bar at bottom */}
+        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-10 pb-3 px-3 z-10">
+          <h3 className="font-bold text-sm leading-tight text-white line-clamp-2 tracking-tight">
+            {book.title}
+          </h3>
+          <p className="text-white/60 text-[10px] mt-0.5 truncate">{authors}</p>
           {book.series && (
-            <div className="flex items-center gap-1.5 text-[8px] text-primary/80 font-bold uppercase tracking-wider">
-              <Hash className="w-2.5 h-2.5" />
-              <span className="truncate">{book.series.name} {book.seriesNumber && `#${book.seriesNumber}`}</span>
+            <div className="flex items-center gap-1 text-[9px] text-primary/90 font-bold uppercase tracking-wider mt-1">
+              <Hash className="w-2.5 h-2.5 shrink-0" />
+              <span className="truncate">{book.series.name}{book.seriesNumber != null ? ` #${book.seriesNumber}` : ''}</span>
             </div>
           )}
+        </div>
 
-          {book.description && (
-            <p className="text-[10px] text-muted-foreground/60 line-clamp-3 mt-1 italic leading-relaxed">
-              {book.description.replace(/<[^>]*>/g, '')}
-            </p>
-          )}
+        {/* Hover overlay: description + actions */}
+        <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col justify-between p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
+          <div className="overflow-hidden">
+            {book.description ? (
+              <p className="text-white/80 text-[11px] leading-relaxed line-clamp-[10]">
+                {book.description.replace(/<[^>]*>/g, '')}
+              </p>
+            ) : (
+              <p className="text-white/30 text-[11px] italic">No description available.</p>
+            )}
+          </div>
+          <div className="flex gap-2 mt-3 shrink-0">
+            <button
+              onClick={handleDownload}
+              className="flex-1 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold py-2 rounded-xl flex items-center justify-center gap-2 transition-colors"
+            >
+              <Download className="w-3 h-3" />
+              Download
+            </button>
+            {book.goodreadsLink && (
+              <button
+                onClick={openGoodreads}
+                className="bg-amber-500/20 hover:bg-amber-500/40 text-amber-400 p-2 rounded-xl transition-all"
+                title="Goodreads"
+              >
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={handleEdit}
+                className="bg-primary/80 hover:bg-primary text-primary-foreground p-2 rounded-xl transition-colors"
+              >
+                <Edit3 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
       </motion.div>
 
