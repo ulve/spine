@@ -40,36 +40,41 @@ function extractImageHsl(src: string): Promise<{ h: number; s: number } | null> 
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 16; canvas.height = 16;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { resolve(null); return; }
-      ctx.drawImage(img, 0, 0, 16, 16);
-      const data = ctx.getImageData(0, 0, 16, 16).data;
-      let r = 0, g = 0, b = 0, count = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        if (brightness > 240) continue; // only skip near-white
-        r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
-      }
-      if (count === 0) { resolve(null); return; }
-      r = r / count / 255; g = g / count / 255; b = b / count / 255;
-      const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
-      const l = (max + min) / 2;
-      let h = 0, s = 0;
-      if (d !== 0) {
-        s = d / (1 - Math.abs(2 * l - 1));
-        switch (max) {
-          case r: h = ((g - b) / d + 6) % 6; break;
-          case g: h = (b - r) / d + 2; break;
-          case b: h = (r - g) / d + 4; break;
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 16; canvas.height = 16;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { console.warn('[ShelfTint] No canvas context'); resolve(null); return; }
+        ctx.drawImage(img, 0, 0, 16, 16);
+        const data = ctx.getImageData(0, 0, 16, 16).data;
+        let r = 0, g = 0, b = 0, count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
         }
-        h = Math.round(h * 60);
+        r = r / count / 255; g = g / count / 255; b = b / count / 255;
+        console.log('[ShelfTint] avg RGB:', Math.round(r*255), Math.round(g*255), Math.round(b*255));
+        const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+        const l = (max + min) / 2;
+        let h = 0, s = 0;
+        if (d !== 0) {
+          s = d / (1 - Math.abs(2 * l - 1));
+          switch (max) {
+            case r: h = ((g - b) / d + 6) % 6; break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+          }
+          h = Math.round(h * 60);
+        }
+        console.log('[ShelfTint] HSL:', h, Math.round(s*100), Math.round(l*100));
+        resolve({ h, s });
+      } catch (e) {
+        console.error('[ShelfTint] canvas error:', e);
+        resolve(null);
       }
-      resolve({ h, s });
     };
-    img.onerror = () => resolve(null);
+    img.onerror = (e) => { console.error('[ShelfTint] image failed to load:', src, e); resolve(null); };
     img.src = src;
+    console.log('[ShelfTint] loading image:', src);
   });
 }
 
@@ -138,16 +143,25 @@ export const ShelfPage: React.FC = () => {
   }, [shelf, currentSort, token]);
 
   useEffect(() => {
+    const root = document.documentElement;
     if (!shelf?.backgroundImage) return;
     let cancelled = false;
-    extractImageHsl(`/api/shelf-backgrounds/${shelf.backgroundImage}`).then((hsl) => {
-      if (cancelled || !hsl) return;
-      const s = Math.min(hsl.s * 0.7, 0.4);
-      document.body.style.backgroundColor = `hsl(${hsl.h} ${Math.round(s * 100)}% 8%)`;
+    const src = `/api/shelf-backgrounds/${shelf.backgroundImage}`;
+    console.log('[ShelfTint] shelf has image:', shelf.backgroundImage);
+    extractImageHsl(src).then((hsl) => {
+      if (cancelled) return;
+      if (!hsl) { console.warn('[ShelfTint] extraction returned null'); return; }
+      const s = Math.round(Math.min(hsl.s * 0.8, 0.45) * 100);
+      const bgColor = `hsl(${hsl.h} ${s}% 9%)`;
+      const sidebarColor = `hsl(${hsl.h} ${Math.round(s * 0.7)}% 4%)`;
+      console.log('[ShelfTint] applying bg:', bgColor, 'sidebar:', sidebarColor);
+      root.style.setProperty('--shelf-tint-bg', bgColor);
+      root.style.setProperty('--shelf-tint-sidebar', sidebarColor);
     });
     return () => {
       cancelled = true;
-      document.body.style.backgroundColor = '';
+      root.style.removeProperty('--shelf-tint-bg');
+      root.style.removeProperty('--shelf-tint-sidebar');
     };
   }, [shelf?.backgroundImage]);
 
