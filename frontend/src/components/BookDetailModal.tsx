@@ -38,6 +38,12 @@ const statusOptions = [
 export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialBook, onClose }) => {
   const { token, user, isAuthenticated } = useAuth();
   const [book, setBook] = useState(initialBook);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [userStatus, setUserStatus] = useState<string | null>(null);
   const [rating, setRating] = useState(0);

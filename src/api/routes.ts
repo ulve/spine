@@ -23,6 +23,7 @@ const BOOKS_DIR = process.env.BOOKS_DIR || '/app/books';
 const COVERS_DIR = process.env.COVERS_DIR || '/app/data/covers';
 
 const SHELF_BG_DIR = path.join(COVERS_DIR, 'shelf-bgs');
+const AUTHOR_PICS_DIR = path.join(COVERS_DIR, 'authors');
 
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -91,6 +92,26 @@ const uploadShelfBg = multer({
     }
   },
   limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+const authorPicStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    await fs.ensureDir(AUTHOR_PICS_DIR);
+    cb(null, AUTHOR_PICS_DIR);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `author-${req.params.id}-${Date.now()}${path.extname(file.originalname)}`);
+  },
+});
+
+const uploadAuthorPic = multer({
+  storage: authorPicStorage,
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) cb(null, true);
+    else cb(new Error('Only image files are allowed'));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 const getRequestUser = (req: Request) => (req as AuthenticatedRequest).user;
@@ -590,6 +611,31 @@ router.get('/authors', async (_req: Request, res: Response) => {
     res.json(authors);
   } catch (error) {
     console.error('List authors error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/authors/:id/picture', authenticateToken, requireAdmin, uploadAuthorPic.single('picture'), async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+
+    const existing = await prisma.author.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Author not found' });
+
+    if (existing.picture) {
+      await fs.remove(path.join(AUTHOR_PICS_DIR, existing.picture)).catch(() => {});
+    }
+
+    const filename = path.basename(req.file.path);
+    const author = await prisma.author.update({
+      where: { id },
+      data: { picture: filename },
+      include: { _count: { select: { books: true } } },
+    });
+    res.json(author);
+  } catch (err) {
+    console.error('Author picture upload error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

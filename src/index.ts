@@ -64,6 +64,7 @@ async function main() {
   // Serve covers and shelf backgrounds
   app.use('/api/covers', express.static(COVERS_DIR));
   app.use('/api/shelf-backgrounds', express.static(path.join(COVERS_DIR, 'shelf-bgs')));
+  app.use('/api/author-pictures', express.static(path.join(COVERS_DIR, 'authors')));
 
   // API Routes
   app.use('/api', apiRoutes);

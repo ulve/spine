@@ -70,9 +70,10 @@ model Review {
 }
 
 model Author {
-  id    String @id @default(uuid())
-  name  String @unique
-  books Book[] @relation("BookAuthor")
+  id      String  @id @default(uuid())
+  name    String  @unique
+  picture String?
+  books   Book[]  @relation("BookAuthor")
 
   @@index([name])
 }

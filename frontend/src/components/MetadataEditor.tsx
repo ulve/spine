@@ -103,6 +103,12 @@ const Autocomplete: React.FC<AutocompleteProps> = ({ value, onChange, suggestion
 export const MetadataEditor: React.FC<MetadataEditorProps> = ({ book, onClose, onUpdate }) => {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
   const [error, setError] = useState('');
   const [authorSuggestions, setAuthorSuggestions] = useState<string[]>([]);
   const [seriesSuggestions, setSeriesSuggestions] = useState<string[]>([]);
