@@ -20,3 +20,6 @@ Thumbs.db
 
 # Docker-specific
 docker-compose.override.yml
+.codex
+.gemini/
+prisma/prisma/
