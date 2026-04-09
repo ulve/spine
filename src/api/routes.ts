@@ -4,6 +4,7 @@ import prisma from '../db.js';
 import path from 'path';
 import fs from 'fs-extra';
 import multer from 'multer';
+import sharp from 'sharp';
 import { scanner } from '../index.js';
 import { attachOptionalUser, authenticateToken, requireAdmin, type AuthenticatedRequest } from './auth.js';
 import {
@@ -47,72 +48,20 @@ const upload = multer({
   },
 });
 
-const coverStorage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    await fs.ensureDir(COVERS_DIR);
-    cb(null, COVERS_DIR);
-  },
-  filename: (req, file, cb) => {
-    const bookId = req.params.id as string;
-    cb(null, `cover-${bookId}-${Date.now()}${path.extname(file.originalname)}`);
-  },
-});
+const imageMemFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'].includes(ext)) cb(null, true);
+  else cb(new Error('Only image files are allowed'));
+};
 
-const uploadCover = multer({
-  storage: coverStorage,
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
-  },
-});
+const uploadCover = multer({ storage: multer.memoryStorage(), fileFilter: imageMemFilter });
+const uploadShelfBg = multer({ storage: multer.memoryStorage(), fileFilter: imageMemFilter, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadAuthorPic = multer({ storage: multer.memoryStorage(), fileFilter: imageMemFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 
-const shelfBgStorage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    await fs.ensureDir(SHELF_BG_DIR);
-    cb(null, SHELF_BG_DIR);
-  },
-  filename: (req, file, cb) => {
-    const shelfId = req.params.id as string;
-    cb(null, `shelf-bg-${shelfId}-${Date.now()}${path.extname(file.originalname)}`);
-  },
-});
-
-const uploadShelfBg = multer({
-  storage: shelfBgStorage,
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
-  },
-  limits: { fileSize: 10 * 1024 * 1024 },
-});
-
-const authorPicStorage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    await fs.ensureDir(AUTHOR_PICS_DIR);
-    cb(null, AUTHOR_PICS_DIR);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `author-${req.params.id}-${Date.now()}${path.extname(file.originalname)}`);
-  },
-});
-
-const uploadAuthorPic = multer({
-  storage: authorPicStorage,
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) cb(null, true);
-    else cb(new Error('Only image files are allowed'));
-  },
-  limits: { fileSize: 5 * 1024 * 1024 },
-});
+async function saveAsWebp(buffer: Buffer, destPath: string, quality = 85): Promise<void> {
+  await fs.ensureDir(path.dirname(destPath));
+  await sharp(buffer).webp({ quality }).toFile(destPath);
+}
 
 const getRequestUser = (req: Request) => (req as AuthenticatedRequest).user;
 
@@ -490,7 +439,8 @@ router.post('/nav-shelves/:id/background', authenticateToken, requireAdmin, uplo
       await fs.remove(path.join(SHELF_BG_DIR, existing.backgroundImage)).catch(() => {});
     }
 
-    const filename = path.basename(req.file.path);
+    const filename = `shelf-bg-${id}-${Date.now()}.webp`;
+    await saveAsWebp(req.file.buffer, path.join(SHELF_BG_DIR, filename));
     const shelf = await prisma.navShelf.update({
       where: { id },
       data: { backgroundImage: filename },
@@ -628,7 +578,8 @@ router.post('/authors/:id/picture', authenticateToken, requireAdmin, uploadAutho
       await fs.remove(path.join(AUTHOR_PICS_DIR, existing.picture)).catch(() => {});
     }
 
-    const filename = path.basename(req.file.path);
+    const filename = `author-${id}-${Date.now()}.webp`;
+    await saveAsWebp(req.file.buffer, path.join(AUTHOR_PICS_DIR, filename));
     const author = await prisma.author.update({
       where: { id },
       data: { picture: filename },
@@ -744,7 +695,10 @@ router.post('/books/:id/cover', authenticateToken, requireAdmin, uploadCover.sin
     const book = await prisma.book.findUnique({ where: { id } });
     if (!book) return res.status(404).json({ error: 'Book not found' });
 
-    const coverPath = req.file.path;
+    const webpFilename = `cover-${id}-${Date.now()}.webp`;
+    const coverPath = path.join(COVERS_DIR, webpFilename);
+    await saveAsWebp(req.file.buffer, coverPath);
+
     if (embed && book.format === 'epub') {
         try {
             await embedCoverInEpub(book.filePath, coverPath);
