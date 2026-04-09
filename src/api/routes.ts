@@ -605,6 +605,7 @@ router.get('/books/:id', attachOptionalUser, async (req: Request, res: Response)
 router.get('/authors', async (_req: Request, res: Response) => {
   try {
     const authors = await prisma.author.findMany({
+      where: { books: { some: {} } },
       orderBy: { name: 'asc' },
       include: { _count: { select: { books: true } } },
     });
@@ -643,6 +644,7 @@ router.post('/authors/:id/picture', authenticateToken, requireAdmin, uploadAutho
 router.get('/series', async (_req: Request, res: Response) => {
   try {
     const series = await prisma.series.findMany({
+      where: { books: { some: {} } },
       orderBy: { name: 'asc' },
       include: { _count: { select: { books: true } } },
     });
@@ -656,6 +658,7 @@ router.get('/series', async (_req: Request, res: Response) => {
 router.get('/tags', async (_req: Request, res: Response) => {
   try {
     const tags = await prisma.tag.findMany({
+      where: { books: { some: {} } },
       orderBy: { name: 'asc' },
       include: { _count: { select: { books: true } } },
     });
