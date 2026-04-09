@@ -49,7 +49,7 @@ function extractImageHsl(src: string): Promise<{ h: number; s: number } | null> 
       let r = 0, g = 0, b = 0, count = 0;
       for (let i = 0; i < data.length; i += 4) {
         const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        if (brightness < 20 || brightness > 235) continue;
+        if (brightness > 240) continue; // only skip near-white
         r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
       }
       if (count === 0) { resolve(null); return; }
@@ -142,8 +142,8 @@ export const ShelfPage: React.FC = () => {
     let cancelled = false;
     extractImageHsl(`/api/shelf-backgrounds/${shelf.backgroundImage}`).then((hsl) => {
       if (cancelled || !hsl) return;
-      const s = Math.min(hsl.s * 0.35, 0.18);
-      document.body.style.backgroundColor = `hsl(${hsl.h} ${Math.round(s * 100)}% 6%)`;
+      const s = Math.min(hsl.s * 0.7, 0.4);
+      document.body.style.backgroundColor = `hsl(${hsl.h} ${Math.round(s * 100)}% 8%)`;
     });
     return () => {
       cancelled = true;
