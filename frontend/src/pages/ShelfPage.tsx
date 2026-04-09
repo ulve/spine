@@ -153,15 +153,12 @@ export const ShelfPage: React.FC = () => {
       if (!hsl) { console.warn('[ShelfTint] extraction returned null'); return; }
       const s = Math.round(Math.min(hsl.s * 0.8, 0.45) * 100);
       const bgColor = `hsl(${hsl.h} ${s}% 9%)`;
-      const sidebarColor = `hsl(${hsl.h} ${Math.round(s * 0.7)}% 4%)`;
-      console.log('[ShelfTint] applying bg:', bgColor, 'sidebar:', sidebarColor);
+      console.log('[ShelfTint] applying bg:', bgColor);
       root.style.setProperty('--shelf-tint-bg', bgColor);
-      root.style.setProperty('--shelf-tint-sidebar', sidebarColor);
     });
     return () => {
       cancelled = true;
       root.style.removeProperty('--shelf-tint-bg');
-      root.style.removeProperty('--shelf-tint-sidebar');
     };
   }, [shelf?.backgroundImage]);
 
