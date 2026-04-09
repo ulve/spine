@@ -36,6 +36,43 @@ function shelfHue(name: string): number {
   return h;
 }
 
+function extractImageHsl(src: string): Promise<{ h: number; s: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 16; canvas.height = 16;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(null); return; }
+      ctx.drawImage(img, 0, 0, 16, 16);
+      const data = ctx.getImageData(0, 0, 16, 16).data;
+      let r = 0, g = 0, b = 0, count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+        if (brightness < 20 || brightness > 235) continue;
+        r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
+      }
+      if (count === 0) { resolve(null); return; }
+      r = r / count / 255; g = g / count / 255; b = b / count / 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+      const l = (max + min) / 2;
+      let h = 0, s = 0;
+      if (d !== 0) {
+        s = d / (1 - Math.abs(2 * l - 1));
+        switch (max) {
+          case r: h = ((g - b) / d + 6) % 6; break;
+          case g: h = (b - r) / d + 2; break;
+          case b: h = (r - g) / d + 4; break;
+        }
+        h = Math.round(h * 60);
+      }
+      resolve({ h, s });
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 export const ShelfPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -99,6 +136,20 @@ export const ShelfPage: React.FC = () => {
 
     fetchBooks();
   }, [shelf, currentSort, token]);
+
+  useEffect(() => {
+    if (!shelf?.backgroundImage) return;
+    let cancelled = false;
+    extractImageHsl(`/api/shelf-backgrounds/${shelf.backgroundImage}`).then((hsl) => {
+      if (cancelled || !hsl) return;
+      const s = Math.min(hsl.s * 0.35, 0.18);
+      document.body.style.backgroundColor = `hsl(${hsl.h} ${Math.round(s * 100)}% 6%)`;
+    });
+    return () => {
+      cancelled = true;
+      document.body.style.backgroundColor = '';
+    };
+  }, [shelf?.backgroundImage]);
 
   if (shelfLoading) {
     return (
