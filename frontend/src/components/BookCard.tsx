@@ -61,12 +61,12 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
             <p className="text-xs text-muted-foreground truncate">{authors}</p>
           </div>
 
-          <div className="hidden md:flex items-center flex-1 min-w-0">
+          <div className="hidden md:flex items-center gap-1.5 flex-1 min-w-0 text-[10px] text-primary/80 font-bold uppercase tracking-wider">
             {book.series && (
-              <div className="flex items-center gap-1.5 text-[10px] text-primary/80 font-bold uppercase tracking-wider min-w-0">
+              <>
                 <Hash className="w-3 h-3 shrink-0" />
                 <span className="truncate">{book.series.name}{book.seriesNumber != null ? ` #${book.seriesNumber}` : ''}</span>
-              </div>
+              </>
             )}
           </div>
 
