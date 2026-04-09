@@ -54,47 +54,66 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
 
   if (isAuthenticated && user?.isAdmin) {
     navItems.push({ name: 'Upload', path: '/upload', icon: Upload });
-  }
-
-  if (isAuthenticated && user?.isAdmin) {
     navItems.push({ name: 'Admin', path: '/admin', icon: Shield });
   }
 
   const isActive = (path: string) => location.pathname === path;
 
+  const NavLink = ({ name, path, icon: Icon }: { name: string; path: string; icon: React.ElementType }) => {
+    const active = isActive(path);
+    return (
+      <Link
+        to={path}
+        className={cn(
+          "flex items-center gap-4 pl-3 pr-4 py-2.5 rounded-xl transition-all duration-200 group border-l-2",
+          active
+            ? "border-primary bg-primary/8 text-foreground"
+            : "border-transparent text-muted-foreground hover:text-foreground hover:bg-white/4"
+        )}
+      >
+        <Icon className={cn("w-4 h-4 transition-transform duration-200 group-hover:scale-110 shrink-0", active ? "text-primary" : "text-muted-foreground group-hover:text-primary")} />
+        <span className="font-bold text-xs uppercase tracking-widest">{name}</span>
+      </Link>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
       {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-72 bg-[#0F1626] border-r border-white/5 p-8 fixed h-full z-40">
-        <Link to="/" className="flex items-center gap-3 px-2 mb-12">
-          <span className="text-2xl font-black tracking-tighter uppercase italic text-foreground">Spine</span>
+      <aside className="hidden md:flex flex-col w-64 bg-[#080d18] border-r border-white/5 p-6 fixed h-full z-40">
+        {/* Wordmark */}
+        <Link to="/" className="px-3 mb-8 block">
+          <span
+            className="text-3xl text-foreground leading-none"
+            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fontWeight: 600 }}
+          >
+            Spine
+          </span>
         </Link>
 
-        <nav className="flex-1 space-y-2 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.name}
-                to={item.path}
-                className={cn(
-                  "flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  isActive(item.path)
-                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                )}
-              >
-                <Icon className={cn("w-5 h-5 transition-transform group-hover:scale-110", isActive(item.path) ? "text-primary-foreground" : "text-primary")} />
-                <span className="font-bold text-sm uppercase tracking-widest">{item.name}</span>
-              </Link>
-            );
-          })}
+        {/* Search */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60" />
+          <input
+            type="text"
+            placeholder="Search..."
+            value={searchValue}
+            onChange={handleSearchChange}
+            className="w-full bg-white/4 border border-white/8 rounded-xl py-2 pl-9 pr-3 text-xs outline-none focus:ring-1 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/40"
+          />
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 space-y-0.5 overflow-y-auto">
+          {navItems.map(item => (
+            <NavLink key={item.name} {...item} />
+          ))}
 
           {navShelves.length > 0 && (
             <>
-              <div className="pt-4 pb-1 px-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40 flex items-center gap-2">
-                  <Layers className="w-3 h-3" />
+              <div className="pt-5 pb-1.5 pl-3">
+                <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-muted-foreground/35 flex items-center gap-1.5">
+                  <Layers className="w-2.5 h-2.5" />
                   Shelves
                 </p>
               </div>
@@ -106,14 +125,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                     key={shelf.id}
                     to={shelfPath}
                     className={cn(
-                      "flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group",
+                      "flex items-center gap-4 pl-3 pr-4 py-2.5 rounded-xl transition-all duration-200 group border-l-2",
                       active
-                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/10"
-                        : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                        ? "border-primary bg-primary/8 text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-white/4"
                     )}
                   >
-                    <BookMarked className={cn("w-5 h-5 transition-transform group-hover:scale-110", active ? "text-primary-foreground" : "text-primary")} />
-                    <span className="font-bold text-sm uppercase tracking-widest truncate">{shelf.name}</span>
+                    <BookMarked className={cn("w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110", active ? "text-primary" : "text-muted-foreground group-hover:text-primary")} />
+                    <span className="font-bold text-xs uppercase tracking-widest truncate">{shelf.name}</span>
                   </Link>
                 );
               })}
@@ -121,38 +140,44 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
           )}
         </nav>
 
+        {/* User */}
         {isAuthenticated ? (
-          <div className="pt-8 border-t border-white/5 space-y-4">
-            <div className="px-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40 mb-1">Signed in as</p>
+          <div className="pt-6 border-t border-white/5 space-y-1">
+            <div className="px-3 mb-2">
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35 mb-0.5">Signed in as</p>
               <p className="font-bold text-sm truncate">{user?.username}</p>
             </div>
             <button
               onClick={() => { logout(); navigate('/login'); }}
-              className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-rose-400 hover:bg-rose-400/10 transition-all group"
+              className="w-full flex items-center gap-4 pl-3 pr-4 py-2.5 rounded-xl text-rose-400/80 hover:text-rose-400 hover:bg-rose-400/8 transition-all group border-l-2 border-transparent"
             >
-              <LogOut className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-              <span className="font-bold text-sm uppercase tracking-widest">Sign Out</span>
+              <LogOut className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+              <span className="font-bold text-xs uppercase tracking-widest">Sign Out</span>
             </button>
           </div>
         ) : (
           <Link
             to="/login"
-            className="flex items-center gap-4 px-4 py-3 rounded-2xl bg-white/5 text-foreground hover:bg-white/10 transition-all"
+            className="flex items-center gap-4 pl-3 pr-4 py-2.5 rounded-xl bg-white/4 text-foreground hover:bg-white/8 transition-all border-l-2 border-transparent"
           >
-            <LogOut className="w-5 h-5 rotate-180" />
-            <span className="font-bold text-sm uppercase tracking-widest">Sign In</span>
+            <LogOut className="w-4 h-4 rotate-180" />
+            <span className="font-bold text-xs uppercase tracking-widest">Sign In</span>
           </Link>
         )}
       </aside>
 
       {/* Mobile Header */}
-      <header className="md:hidden bg-[#0F1626] border-b border-white/5 p-4 sticky top-0 z-50 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-3">
-          <span className="text-lg font-black tracking-tighter uppercase italic">Spine</span>
+      <header className="md:hidden bg-[#080d18] border-b border-white/5 px-4 py-3 sticky top-0 z-50 flex items-center justify-between">
+        <Link to="/" className="block">
+          <span
+            className="text-2xl leading-none"
+            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fontWeight: 600 }}
+          >
+            Spine
+          </span>
         </Link>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-muted-foreground">
-          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       </header>
 
@@ -160,22 +185,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="md:hidden fixed inset-0 top-[65px] bg-[#0F1626] z-40 p-6 space-y-6"
+            exit={{ opacity: 0, y: -12 }}
+            className="md:hidden fixed inset-0 top-[53px] bg-[#080d18] z-40 p-5 space-y-5 overflow-y-auto"
           >
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search library..."
                 value={searchValue}
                 onChange={handleSearchChange}
-                className="w-full bg-background/50 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                className="w-full bg-background/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all"
               />
             </div>
-            <nav className="space-y-2">
+            <nav className="space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -184,19 +209,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                     to={item.path}
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={cn(
-                      "flex items-center gap-4 px-4 py-4 rounded-2xl",
-                      isActive(item.path) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5"
+                      "flex items-center gap-4 px-4 py-3.5 rounded-xl border-l-2",
+                      isActive(item.path)
+                        ? "border-primary bg-primary/8 text-foreground"
+                        : "border-transparent text-muted-foreground hover:bg-white/4"
                     )}
                   >
-                    <Icon className="w-5 h-5" />
-                    <span className="font-bold uppercase tracking-widest">{item.name}</span>
+                    <Icon className="w-4 h-4" />
+                    <span className="font-bold text-sm uppercase tracking-widest">{item.name}</span>
                   </Link>
                 );
               })}
               {navShelves.length > 0 && (
                 <>
-                  <div className="pt-2 pb-1 px-4">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Shelves</p>
+                  <div className="pt-3 pb-1 px-3">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Shelves</p>
                   </div>
                   {navShelves.map(shelf => {
                     const shelfPath = `/shelf/${shelf.id}`;
@@ -206,12 +233,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                         to={shelfPath}
                         onClick={() => setIsMobileMenuOpen(false)}
                         className={cn(
-                          "flex items-center gap-4 px-4 py-4 rounded-2xl",
-                          location.pathname === shelfPath ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5"
+                          "flex items-center gap-4 px-4 py-3.5 rounded-xl border-l-2",
+                          location.pathname === shelfPath
+                            ? "border-primary bg-primary/8 text-foreground"
+                            : "border-transparent text-muted-foreground hover:bg-white/4"
                         )}
                       >
-                        <BookMarked className="w-5 h-5" />
-                        <span className="font-bold uppercase tracking-widest">{shelf.name}</span>
+                        <BookMarked className="w-4 h-4" />
+                        <span className="font-bold text-sm uppercase tracking-widest">{shelf.name}</span>
                       </Link>
                     );
                   })}
@@ -221,30 +250,18 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
             {isAuthenticated && (
               <button
                 onClick={() => { logout(); navigate('/login'); setIsMobileMenuOpen(false); }}
-                className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-rose-400 bg-rose-400/5"
+                className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-rose-400 border-l-2 border-transparent"
               >
-                <LogOut className="w-5 h-5" />
-                <span className="font-bold uppercase tracking-widest">Sign Out</span>
+                <LogOut className="w-4 h-4" />
+                <span className="font-bold text-sm uppercase tracking-widest">Sign Out</span>
               </button>
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
-      <main className="flex-1 md:ml-72 p-6 md:p-12">
-        {/* Search Bar - Desktop */}
-        <div className="hidden md:block relative max-w-2xl mb-12">
-          <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search books, authors, or series..."
-            value={searchValue}
-            onChange={handleSearchChange}
-            className="w-full bg-[#0F1626] border border-white/5 rounded-3xl py-4 pl-16 pr-6 text-base outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-2xl"
-          />
-        </div>
-
+      {/* Main Content — no search bar here anymore */}
+      <main className="flex-1 md:ml-64 p-6 md:p-10">
         {children}
       </main>
     </div>

@@ -140,8 +140,8 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
           {book.format}
         </div>
 
-        {/* Always-visible title bar at bottom */}
-        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-10 pb-3 px-3 z-10">
+        {/* Always-visible title bar — fades out on hover */}
+        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-10 pb-3 px-3 z-10 transition-opacity duration-200 group-hover:opacity-0">
           <h3 className="font-bold text-sm leading-tight text-white line-clamp-2 tracking-tight">
             {book.title}
           </h3>
@@ -154,21 +154,21 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
           )}
         </div>
 
-        {/* Hover overlay: description + actions */}
-        <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col justify-between p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
-          <div className="overflow-hidden">
+        {/* Slide-up detail panel — covers bottom ~65%, cover stays visible above */}
+        <div className="absolute inset-x-0 bottom-0 h-[68%] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out z-20 flex flex-col justify-between bg-gradient-to-t from-black via-black/97 to-black/80 pt-5 pb-3 px-3">
+          <div className="overflow-hidden flex-1">
             {book.description ? (
-              <p className="text-white/80 text-[11px] leading-relaxed line-clamp-[10]">
+              <p className="text-white/75 text-[10px] leading-relaxed line-clamp-[9]">
                 {book.description.replace(/<[^>]*>/g, '')}
               </p>
             ) : (
-              <p className="text-white/30 text-[11px] italic">No description available.</p>
+              <p className="text-white/25 text-[10px] italic">No description available.</p>
             )}
           </div>
           <div className="flex gap-2 mt-3 shrink-0">
             <button
               onClick={handleDownload}
-              className="flex-1 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold py-2 rounded-xl flex items-center justify-center gap-2 transition-colors"
+              className="flex-1 bg-white/10 hover:bg-white/20 border border-white/15 text-white text-[10px] font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
             >
               <Download className="w-3 h-3" />
               Download
@@ -176,7 +176,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
             {book.goodreadsLink && (
               <button
                 onClick={openGoodreads}
-                className="bg-amber-500/20 hover:bg-amber-500/40 text-amber-400 p-2 rounded-xl transition-all"
+                className="bg-primary/15 hover:bg-primary/30 text-primary p-2 rounded-lg transition-all"
                 title="Goodreads"
               >
                 <ExternalLink className="w-3 h-3" />
@@ -185,7 +185,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
             {canEdit && (
               <button
                 onClick={handleEdit}
-                className="bg-primary/80 hover:bg-primary text-primary-foreground p-2 rounded-xl transition-colors"
+                className="bg-white/10 hover:bg-white/20 text-white/70 hover:text-white p-2 rounded-lg transition-colors"
               >
                 <Edit3 className="w-3 h-3" />
               </button>

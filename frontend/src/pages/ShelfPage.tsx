@@ -2,12 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookCard } from '../components/BookCard';
-import { Book, BooksResponse, NavShelf, PaginationInfo } from '../types';
+import { Book, BooksResponse, NavShelf } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   Inbox,
   LayoutGrid,
   List,
@@ -32,6 +30,12 @@ const sortOptions: SortOption[] = [
   { label: 'Series Number', sortBy: 'seriesNumber', sortOrder: 'asc' },
 ];
 
+function shelfHue(name: string): number {
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return h;
+}
+
 export const ShelfPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -39,15 +43,12 @@ export const ShelfPage: React.FC = () => {
 
   const [shelf, setShelf] = useState<NavShelf | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
-  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [shelfLoading, setShelfLoading] = useState(true);
-  const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentSort, setCurrentSort] = useState<SortOption>(sortOptions[0]);
   const [isSortOpen, setIsSortOpen] = useState(false);
-
-  const limit = 20;
 
   useEffect(() => {
     if (!id) return;
@@ -66,7 +67,7 @@ export const ShelfPage: React.FC = () => {
   useEffect(() => {
     if (!shelf || shelf.tags.length === 0) {
       setBooks([]);
-      setPagination(null);
+      setTotal(0);
       setLoading(false);
       return;
     }
@@ -76,8 +77,7 @@ export const ShelfPage: React.FC = () => {
       try {
         const tagIds = shelf.tags.map(t => t.id).join(',');
         const params = new URLSearchParams({
-          page: page.toString(),
-          limit: limit.toString(),
+          limit: '1000',
           tagIds,
           sortBy: currentSort.sortBy,
           sortOrder: currentSort.sortOrder,
@@ -89,7 +89,7 @@ export const ShelfPage: React.FC = () => {
         const data: BooksResponse = await response.json();
         if (!response.ok) throw new Error((data as any).error || 'Failed to fetch books');
         setBooks(data.books);
-        setPagination(data.pagination);
+        setTotal(data.pagination.total);
       } catch (err) {
         console.error('Error fetching shelf books:', err);
       } finally {
@@ -98,19 +98,7 @@ export const ShelfPage: React.FC = () => {
     };
 
     fetchBooks();
-  }, [shelf, page, currentSort, token]);
-
-  useEffect(() => { setPage(1); }, [currentSort]);
-
-  const container = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.05 } },
-  };
-
-  const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 },
-  };
+  }, [shelf, currentSort, token]);
 
   if (shelfLoading) {
     return (
@@ -124,37 +112,41 @@ export const ShelfPage: React.FC = () => {
   if (!shelf) return null;
 
   const bgUrl = shelf.backgroundImage ? `/api/shelf-backgrounds/${shelf.backgroundImage}` : null;
+  const hue = shelfHue(shelf.name);
+  const fallbackGradient = `linear-gradient(135deg, hsl(${hue} 55% 14%) 0%, hsl(${(hue + 45) % 360} 35% 7%) 100%)`;
 
   return (
     <div className="space-y-8">
       {/* Hero banner */}
       <div
-        className="relative rounded-3xl overflow-hidden h-48 md:h-64 flex items-end p-8"
-        style={bgUrl ? { backgroundImage: `url(${bgUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: 'linear-gradient(135deg, #1a1f35 0%, #0f1626 100%)' }}
+        className="relative rounded-3xl overflow-hidden h-52 md:h-72 flex items-end p-8"
+        style={bgUrl
+          ? { backgroundImage: `url(${bgUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : { background: fallbackGradient }
+        }
       >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-        <div className="relative flex items-end gap-4 w-full">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <button
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-1 text-white/60 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                Back
-              </button>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase text-white flex items-center gap-4">
-              <BookMarked className="w-10 h-10 text-primary" />
-              {shelf.name}
-            </h1>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {shelf.tags.map(tag => (
-                <span key={tag.id} className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-white/10 border border-white/20 text-white/80">
-                  {tag.name}
-                </span>
-              ))}
-            </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="relative w-full">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 text-white/50 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors mb-3"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back
+          </button>
+          <h1
+            className="text-5xl md:text-6xl text-white flex items-center gap-4 leading-none mb-4"
+            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fontWeight: 600 }}
+          >
+            <BookMarked className="w-10 h-10 text-primary shrink-0" style={{ fontFamily: 'inherit' }} />
+            {shelf.name}
+          </h1>
+          <div className="flex flex-wrap gap-2">
+            {shelf.tags.map(tag => (
+              <span key={tag.id} className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-white/10 border border-white/20 text-white/75">
+                {tag.name}
+              </span>
+            ))}
           </div>
         </div>
       </div>
@@ -162,7 +154,7 @@ export const ShelfPage: React.FC = () => {
       {/* Controls */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="text-muted-foreground text-xs font-black uppercase tracking-widest">
-          {pagination?.total ?? 0} books
+          {total} books
         </p>
 
         <div className="flex flex-wrap items-center gap-4">
@@ -223,18 +215,6 @@ export const ShelfPage: React.FC = () => {
               <List className="w-4 h-4" />
             </button>
           </div>
-
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center gap-2 bg-secondary/30 p-1 rounded-xl border border-border/50">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 rounded-lg hover:bg-secondary disabled:opacity-20 transition-colors">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-[10px] font-black px-2 tabular-nums tracking-widest">{page} / {pagination.totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))} disabled={page === pagination.totalPages} className="p-2 rounded-lg hover:bg-secondary disabled:opacity-20 transition-colors">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -243,47 +223,45 @@ export const ShelfPage: React.FC = () => {
         <div className="h-[40vh] flex flex-col items-center justify-center gap-4 text-muted-foreground">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
         </div>
-      ) : (
-        <AnimatePresence mode="wait">
-          {books.length > 0 ? (
-            <motion.div
-              key={viewMode + page + currentSort.label}
-              variants={container}
-              initial="hidden"
-              animate="show"
-              className={cn(
-                "grid gap-6",
-                viewMode === 'grid'
-                  ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
-                  : "grid-cols-1"
-              )}
-            >
-              {books.map(book => (
-                <motion.div key={book.id} variants={item}>
-                  <BookCard
-                    book={book}
-                    viewMode={viewMode}
-                    onUpdate={updated => setBooks(prev => prev.map(b => b.id === updated.id ? updated : b))}
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="h-[40vh] flex flex-col items-center justify-center gap-4 text-muted-foreground"
-            >
-              <Inbox className="w-16 h-16 opacity-20" />
-              <p className="text-sm font-black uppercase tracking-widest">No books on this shelf</p>
-              <p className="text-xs text-muted-foreground/60">Add tags to books to populate this shelf</p>
-            </motion.div>
+      ) : books.length > 0 ? (
+        <div
+          className={cn(
+            "grid gap-6",
+            viewMode === 'grid'
+              ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+              : "grid-cols-1"
           )}
-        </AnimatePresence>
+        >
+          {books.map(book => (
+            <motion.div
+              key={book.id}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.25 }}
+            >
+              <BookCard
+                book={book}
+                viewMode={viewMode}
+                onUpdate={updated => setBooks(prev => prev.map(b => b.id === updated.id ? updated : b))}
+              />
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="h-[40vh] flex flex-col items-center justify-center gap-4 text-muted-foreground"
+        >
+          <Inbox className="w-16 h-16 opacity-20" />
+          <p className="text-sm font-black uppercase tracking-widest">No books on this shelf</p>
+          <p className="text-xs text-muted-foreground/60">Add tags to books to populate this shelf</p>
+        </motion.div>
       )}
 
       {loading && books.length > 0 && (
-        <div className="fixed bottom-8 right-8 bg-background/80 backdrop-blur-md border border-border px-6 py-3 rounded-2xl flex items-center gap-3 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed bottom-8 right-8 bg-background/80 backdrop-blur-md border border-border px-6 py-3 rounded-2xl flex items-center gap-3 shadow-2xl z-50">
           <Loader2 className="w-4 h-4 animate-spin text-primary" />
           <span className="text-xs font-black uppercase tracking-[0.2em]">Synchronizing...</span>
         </div>
