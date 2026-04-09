@@ -78,7 +78,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
+    <div className="min-h-screen text-foreground flex flex-col md:flex-row transition-colors duration-[1200ms]" style={{ backgroundColor: 'var(--shelf-tint-bg, hsl(222 30% 6%))' }}>
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-64 border-r border-white/5 p-6 fixed h-full z-40 transition-colors duration-[1200ms]" style={{ backgroundColor: 'var(--shelf-tint-sidebar, #080d18)' }}>
         {/* Wordmark */}
