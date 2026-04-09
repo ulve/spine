@@ -70,7 +70,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="w-28 shrink-0 flex items-center justify-end gap-2">
             {book.goodreadsLink && (
               <button
                 onClick={openGoodreads}
