@@ -1,21 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Library, 
-  Users, 
-  BookOpen, 
-  Tags, 
-  Upload, 
-  LogOut, 
-  Search, 
-  Menu, 
+import {
+  Library,
+  Users,
+  BookOpen,
+  Tags,
+  Upload,
+  LogOut,
+  Search,
+  Menu,
   X,
   Shield,
-  BookMarked
+  BookMarked,
+  Layers
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { NavShelf } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,6 +30,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
+  const [navShelves, setNavShelves] = useState<NavShelf[]>([]);
+
+  useEffect(() => {
+    fetch('/api/nav-shelves')
+      .then(r => r.json())
+      .then((data: NavShelf[]) => setNavShelves(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -57,12 +67,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-72 bg-[#0F1626] border-r border-white/5 p-8 fixed h-full z-40">
         <Link to="/" className="flex items-center gap-3 px-2 mb-12">
-          <div className="w-16 h-16 overflow-hidden rounded-xl shadow-lg shadow-primary/20">
-            <img src="/logo.png" alt="Spine Logo" className="w-full h-full object-cover scale-[2.5] origin-center" />
-          </div>
+          <span className="text-2xl font-black tracking-tighter uppercase italic text-foreground">Spine</span>
         </Link>
 
-        <nav className="flex-1 space-y-2">
+        <nav className="flex-1 space-y-2 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -81,6 +89,36 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
               </Link>
             );
           })}
+
+          {navShelves.length > 0 && (
+            <>
+              <div className="pt-4 pb-1 px-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40 flex items-center gap-2">
+                  <Layers className="w-3 h-3" />
+                  Shelves
+                </p>
+              </div>
+              {navShelves.map(shelf => {
+                const shelfPath = `/shelf/${shelf.id}`;
+                const active = location.pathname === shelfPath;
+                return (
+                  <Link
+                    key={shelf.id}
+                    to={shelfPath}
+                    className={cn(
+                      "flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group",
+                      active
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/10"
+                        : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                    )}
+                  >
+                    <BookMarked className={cn("w-5 h-5 transition-transform group-hover:scale-110", active ? "text-primary-foreground" : "text-primary")} />
+                    <span className="font-bold text-sm uppercase tracking-widest truncate">{shelf.name}</span>
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
 
         {isAuthenticated ? (
@@ -111,9 +149,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
       {/* Mobile Header */}
       <header className="md:hidden bg-[#0F1626] border-b border-white/5 p-4 sticky top-0 z-50 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 overflow-hidden rounded-lg">
-            <img src="/logo.png" alt="Spine Logo" className="w-full h-full object-cover scale-[2.5] origin-center" />
-          </div>
+          <span className="text-lg font-black tracking-tighter uppercase italic">Spine</span>
         </Link>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-muted-foreground">
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -157,6 +193,30 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                   </Link>
                 );
               })}
+              {navShelves.length > 0 && (
+                <>
+                  <div className="pt-2 pb-1 px-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Shelves</p>
+                  </div>
+                  {navShelves.map(shelf => {
+                    const shelfPath = `/shelf/${shelf.id}`;
+                    return (
+                      <Link
+                        key={shelf.id}
+                        to={shelfPath}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={cn(
+                          "flex items-center gap-4 px-4 py-4 rounded-2xl",
+                          location.pathname === shelfPath ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5"
+                        )}
+                      >
+                        <BookMarked className="w-5 h-5" />
+                        <span className="font-bold uppercase tracking-widest">{shelf.name}</span>
+                      </Link>
+                    );
+                  })}
+                </>
+              )}
             </nav>
             {isAuthenticated && (
               <button

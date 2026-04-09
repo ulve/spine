@@ -84,9 +84,12 @@ model Series {
 }
 
 model Tag {
-  id    String @id @default(uuid())
-  name  String @unique
-  books Book[] @relation("BookTag")
+  id         String      @id @default(uuid())
+  name       String      @unique
+  books      Book[]      @relation("BookTag")
+  navShelves NavShelf[]  @relation("NavShelfTag")
+
+  @@index([name])
 }
 
 model Shelf {
@@ -97,4 +100,12 @@ model Shelf {
   books  Book[] @relation("ShelfBook")
 
   @@unique([name, userId])
+}
+
+model NavShelf {
+  id              String  @id @default(uuid())
+  name            String  @unique
+  backgroundImage String?
+  order           Int     @default(0)
+  tags            Tag[]   @relation("NavShelfTag")
 }

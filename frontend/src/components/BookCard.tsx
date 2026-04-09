@@ -48,7 +48,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
         >
           <div className="w-12 h-18 shrink-0 rounded-lg overflow-hidden bg-white/5 aspect-[2/3]">
             {coverUrl ? (
-              <img src={coverUrl} alt={book.title} className="w-full h-full object-cover" />
+              <img src={coverUrl} alt={book.title} loading="lazy" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground/20">
                 <BookIcon className="w-6 h-6" />
@@ -126,6 +126,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
           <img
             src={coverUrl}
             alt={book.title}
+            loading="lazy"
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
         ) : (

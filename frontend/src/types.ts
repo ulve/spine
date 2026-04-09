@@ -69,6 +69,14 @@ export interface Book {
   reviews?: Review[];
 }
 
+export interface NavShelf {
+  id: string;
+  name: string;
+  backgroundImage: string | null;
+  order: number;
+  tags: Tag[];
+}
+
 export interface PaginationInfo {
   page: number;
   limit: number;

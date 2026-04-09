@@ -22,6 +22,8 @@ const router = Router();
 const BOOKS_DIR = process.env.BOOKS_DIR || '/app/books';
 const COVERS_DIR = process.env.COVERS_DIR || '/app/data/covers';
 
+const SHELF_BG_DIR = path.join(COVERS_DIR, 'shelf-bgs');
+
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     await fs.ensureDir(BOOKS_DIR);
@@ -65,6 +67,30 @@ const uploadCover = multer({
       cb(new Error('Only image files are allowed'));
     }
   },
+});
+
+const shelfBgStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    await fs.ensureDir(SHELF_BG_DIR);
+    cb(null, SHELF_BG_DIR);
+  },
+  filename: (req, file, cb) => {
+    const shelfId = req.params.id as string;
+    cb(null, `shelf-bg-${shelfId}-${Date.now()}${path.extname(file.originalname)}`);
+  },
+});
+
+const uploadShelfBg = multer({
+  storage: shelfBgStorage,
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 const getRequestUser = (req: Request) => (req as AuthenticatedRequest).user;
@@ -339,17 +365,136 @@ router.delete('/shelves/:id/books/:bookId', authenticateToken, async (req, res) 
     }
 });
 
+// --- NAV SHELVES ---
+
+router.get('/nav-shelves', async (_req, res) => {
+  try {
+    const shelves = await prisma.navShelf.findMany({
+      orderBy: [{ order: 'asc' }, { name: 'asc' }],
+      include: { tags: { select: { id: true, name: true } } },
+    });
+    res.json(shelves);
+  } catch (err) {
+    console.error('Fetch nav shelves error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/nav-shelves', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const name = normalizeString(req.body.name);
+    if (!name) return res.status(400).json({ error: 'Shelf name is required' });
+
+    const tagNames: string[] = Array.isArray(req.body.tagNames) ? req.body.tagNames.filter(Boolean) : [];
+    const order = req.body.order !== undefined ? Number(req.body.order) : 0;
+
+    const shelf = await prisma.navShelf.create({
+      data: {
+        name,
+        order,
+        tags: {
+          connectOrCreate: tagNames.map((n: string) => ({ where: { name: n }, create: { name: n } })),
+        },
+      },
+      include: { tags: { select: { id: true, name: true } } },
+    });
+    res.status(201).json(shelf);
+  } catch (err) {
+    console.error('Create nav shelf error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.patch('/nav-shelves/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id as string;
+    const existing = await prisma.navShelf.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Shelf not found' });
+
+    const data: Record<string, unknown> = {};
+    const name = normalizeString(req.body.name);
+    if (name) data.name = name;
+    if (req.body.order !== undefined) data.order = Number(req.body.order);
+
+    if (Array.isArray(req.body.tagNames)) {
+      const tagNames: string[] = req.body.tagNames.filter(Boolean);
+      data.tags = {
+        set: [],
+        connectOrCreate: tagNames.map((n: string) => ({ where: { name: n }, create: { name: n } })),
+      };
+    }
+
+    const shelf = await prisma.navShelf.update({
+      where: { id },
+      data,
+      include: { tags: { select: { id: true, name: true } } },
+    });
+    res.json(shelf);
+  } catch (err) {
+    console.error('Update nav shelf error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/nav-shelves/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id as string;
+    const existing = await prisma.navShelf.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Shelf not found' });
+
+    // Delete background image file if present
+    if (existing.backgroundImage) {
+      const bgPath = path.join(SHELF_BG_DIR, existing.backgroundImage);
+      await fs.remove(bgPath).catch(() => {});
+    }
+
+    await prisma.navShelf.delete({ where: { id } });
+    res.status(204).end();
+  } catch (err) {
+    console.error('Delete nav shelf error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/nav-shelves/:id/background', authenticateToken, requireAdmin, uploadShelfBg.single('background'), async (req, res) => {
+  try {
+    const id = req.params.id as string;
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+
+    const existing = await prisma.navShelf.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Shelf not found' });
+
+    // Remove old background file if present
+    if (existing.backgroundImage) {
+      await fs.remove(path.join(SHELF_BG_DIR, existing.backgroundImage)).catch(() => {});
+    }
+
+    const filename = path.basename(req.file.path);
+    const shelf = await prisma.navShelf.update({
+      where: { id },
+      data: { backgroundImage: filename },
+      include: { tags: { select: { id: true, name: true } } },
+    });
+    res.json(shelf);
+  } catch (err) {
+    console.error('Upload shelf background error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // --- EXISTING ROUTES UPDATED ---
 
 router.get('/books', attachOptionalUser, async (req: Request, res: Response) => {
   try {
     const page = parsePaginationNumber(req.query['page'], 1, { min: 1, max: 10000 });
-    const limit = parsePaginationNumber(req.query['limit'], 20, { min: 1, max: 100 });
+    const limit = parsePaginationNumber(req.query['limit'], 1000, { min: 1, max: 1000 });
     const skip = (page - 1) * limit;
     const q = normalizeString(req.query['q']);
     const authorId = normalizeString(req.query['authorId']);
     const seriesId = normalizeString(req.query['seriesId']);
     const tagId = normalizeString(req.query['tagId']);
+    const tagIdsParam = normalizeString(req.query['tagIds']);
+    const tagIds = tagIdsParam ? tagIdsParam.split(',').map(s => s.trim()).filter(Boolean) : null;
     const status = normalizeString(req.query['status']);
     const sortBy = (req.query['sortBy'] as string) || 'addedDate';
     const sortOrder = (req.query['sortOrder'] as string) || 'desc';
@@ -382,6 +527,7 @@ router.get('/books', attachOptionalUser, async (req: Request, res: Response) => 
     if (authorId) where.authors = { some: { id: authorId } };
     if (seriesId) where.seriesId = seriesId;
     if (tagId) where.tags = { some: { id: tagId } };
+    if (tagIds && tagIds.length > 0) where.tags = { some: { id: { in: tagIds } } };
     if (status && currentUserId) {
       where.statuses = { some: { userId: currentUserId, status } };
     }

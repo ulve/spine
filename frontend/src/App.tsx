@@ -8,6 +8,7 @@ import { TagsPage } from './pages/TagsPage';
 import { UploadPage } from './pages/UploadPage';
 import { LoginPage } from './pages/LoginPage';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { ShelfPage } from './pages/ShelfPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({ children, adminOnly }) => {
@@ -28,6 +29,7 @@ const AppContent = () => {
         <Route path="/authors" element={<AuthorsPage />} />
         <Route path="/series" element={<SeriesPage />} />
         <Route path="/tags" element={<TagsPage />} />
+        <Route path="/shelf/:id" element={<ShelfPage />} />
         <Route 
           path="/upload" 
           element={
