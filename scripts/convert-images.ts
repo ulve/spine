@@ -10,6 +10,9 @@ import path from 'path';
 import fs from 'fs-extra';
 import { PrismaClient } from '@prisma/client';
 
+const DB_URL = process.env.DATABASE_URL || `file:${path.join(process.cwd(), 'data/app.db')}`;
+process.env.DATABASE_URL = DB_URL;
+
 const prisma = new PrismaClient();
 
 const COVERS_DIR = process.env.COVERS_DIR || path.join(process.cwd(), 'data/covers');
