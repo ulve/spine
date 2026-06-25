@@ -6,7 +6,7 @@ import fs from 'fs-extra';
 import multer from 'multer';
 import sharp from 'sharp';
 import { scanner } from '../index.js';
-import { attachOptionalUser, authenticateToken, requireAdmin, type AuthenticatedRequest } from './auth.js';
+import { attachOptionalUser, authenticateToken, requireAdmin, requireTrusted, type AuthenticatedRequest } from './auth.js';
 import {
   BOOK_SORT_FIELDS,
   READING_STATUSES,
@@ -116,7 +116,7 @@ async function embedCoverInEpub(epubPath: string, imagePath: string) {
 router.get('/admin/users', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const users = await prisma.user.findMany({
-            select: { id: true, username: true, isApproved: true, isAdmin: true, createdAt: true },
+            select: { id: true, username: true, isApproved: true, isAdmin: true, isTrusted: true, createdAt: true },
             orderBy: { createdAt: 'desc' }
         });
         res.json(users);
@@ -135,6 +135,24 @@ router.post('/admin/users/:id/approve', authenticateToken, requireAdmin, async (
         res.json(user);
     } catch (err) {
         console.error('Admin approve error:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.post('/admin/users/:id/trust', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const targetId = req.params.id as string;
+        const target = await prisma.user.findUnique({ where: { id: targetId } });
+        if (!target) return res.status(404).json({ error: 'User not found' });
+        if (target.isAdmin) return res.status(400).json({ error: 'Cannot change trust status of an admin' });
+        const updated = await prisma.user.update({
+            where: { id: targetId },
+            data: { isTrusted: !target.isTrusted },
+            select: { id: true, username: true, isApproved: true, isAdmin: true, isTrusted: true, createdAt: true },
+        });
+        res.json(updated);
+    } catch (err) {
+        console.error('Admin trust toggle error:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -350,7 +368,7 @@ router.get('/nav-shelves', async (_req, res) => {
   }
 });
 
-router.post('/nav-shelves', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/nav-shelves', authenticateToken, requireTrusted, async (req, res) => {
   try {
     const name = normalizeString(req.body.name);
     if (!name) return res.status(400).json({ error: 'Shelf name is required' });
@@ -375,7 +393,7 @@ router.post('/nav-shelves', authenticateToken, requireAdmin, async (req, res) =>
   }
 });
 
-router.patch('/nav-shelves/:id', authenticateToken, requireAdmin, async (req, res) => {
+router.patch('/nav-shelves/:id', authenticateToken, requireTrusted, async (req, res) => {
   try {
     const id = req.params.id as string;
     const existing = await prisma.navShelf.findUnique({ where: { id } });
@@ -406,7 +424,7 @@ router.patch('/nav-shelves/:id', authenticateToken, requireAdmin, async (req, re
   }
 });
 
-router.delete('/nav-shelves/:id', authenticateToken, requireAdmin, async (req, res) => {
+router.delete('/nav-shelves/:id', authenticateToken, requireTrusted, async (req, res) => {
   try {
     const id = req.params.id as string;
     const existing = await prisma.navShelf.findUnique({ where: { id } });
@@ -426,7 +444,7 @@ router.delete('/nav-shelves/:id', authenticateToken, requireAdmin, async (req, r
   }
 });
 
-router.post('/nav-shelves/:id/background', authenticateToken, requireAdmin, uploadShelfBg.single('background'), async (req, res) => {
+router.post('/nav-shelves/:id/background', authenticateToken, requireTrusted, uploadShelfBg.single('background'), async (req, res) => {
   try {
     const id = req.params.id as string;
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
@@ -585,7 +603,7 @@ router.get('/authors', async (_req: Request, res: Response) => {
   }
 });
 
-router.post('/authors/:id/picture', authenticateToken, requireAdmin, uploadAuthorPic.single('picture'), async (req: Request, res: Response) => {
+router.post('/authors/:id/picture', authenticateToken, requireTrusted, uploadAuthorPic.single('picture'), async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
@@ -673,7 +691,7 @@ router.get('/download/:id', async (req: Request, res: Response) => {
 router.post(
   '/upload',
   authenticateToken,
-  requireAdmin,
+  requireTrusted,
   upload.fields([
     { name: 'file', maxCount: 1 },
     { name: 'files', maxCount: 100 },
@@ -705,7 +723,7 @@ router.post(
   }
 });
 
-router.post('/books/:id/cover', authenticateToken, requireAdmin, uploadCover.single('cover'), async (req: Request, res: Response) => {
+router.post('/books/:id/cover', authenticateToken, requireTrusted, uploadCover.single('cover'), async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const embed = req.body.embed === 'true' || req.body.embed === true;
@@ -739,7 +757,7 @@ router.post('/books/:id/cover', authenticateToken, requireAdmin, uploadCover.sin
   }
 });
 
-router.delete('/books/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+router.delete('/books/:id', authenticateToken, requireTrusted, async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const book = await prisma.book.findUnique({ where: { id } });
@@ -759,7 +777,7 @@ router.delete('/books/:id', authenticateToken, requireAdmin, async (req: Request
   }
 });
 
-router.patch('/books/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+router.patch('/books/:id', authenticateToken, requireTrusted, async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const { title, authors, seriesName, seriesNumber, tags, description, goodreadsLink } = req.body;

@@ -13,6 +13,7 @@ model User {
   passwordHash String
   isApproved   Boolean  @default(false)
   isAdmin      Boolean  @default(false)
+  isTrusted    Boolean  @default(false)
   createdAt    DateTime @default(now())
   shelves      Shelf[]
   statuses     ReadingStatus[]

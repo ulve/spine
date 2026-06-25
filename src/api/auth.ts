@@ -12,6 +12,7 @@ type AuthenticatedUser = {
   userId: string;
   username: string;
   isAdmin: boolean;
+  isTrusted: boolean;
 };
 
 export type AuthenticatedRequest = Request & {
@@ -60,6 +61,15 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction) =>
     const user = (req as AuthenticatedRequest).user;
     if (!user || !user.isAdmin) {
         return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+};
+
+// Middleware to check for Admin or Trusted user
+export const requireTrusted = (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as AuthenticatedRequest).user;
+    if (!user || (!user.isAdmin && !user.isTrusted)) {
+        return res.status(403).json({ error: 'Trusted user access required' });
     }
     next();
 };
@@ -132,11 +142,11 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign(
-        { userId: user.id, username: user.username, isAdmin: user.isAdmin }, 
-        JWT_SECRET, 
+        { userId: user.id, username: user.username, isAdmin: user.isAdmin, isTrusted: user.isTrusted },
+        JWT_SECRET,
         { expiresIn: '30d' }
     );
-    res.json({ token, user: { id: user.id, username: user.username, isAdmin: user.isAdmin } });
+    res.json({ token, user: { id: user.id, username: user.username, isAdmin: user.isAdmin, isTrusted: user.isTrusted } });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -147,7 +157,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
 router.post('/refresh', authenticateToken, (req: Request, res: Response) => {
   const user = (req as AuthenticatedRequest).user;
   const token = jwt.sign(
-    { userId: user.userId, username: user.username, isAdmin: user.isAdmin },
+    { userId: user.userId, username: user.username, isAdmin: user.isAdmin, isTrusted: user.isTrusted },
     JWT_SECRET,
     { expiresIn: '30d' }
   );

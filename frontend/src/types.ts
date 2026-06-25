@@ -19,6 +19,7 @@ export interface User {
   username: string;
   isAdmin: boolean;
   isApproved: boolean;
+  isTrusted: boolean;
   createdAt: string;
 }
 

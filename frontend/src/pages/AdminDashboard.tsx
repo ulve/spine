@@ -66,6 +66,23 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const toggleTrust = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/trust`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update trust');
+      }
+      const updated = await response.json();
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, isTrusted: updated.isTrusted } : u));
+    } catch (err) {
+      console.error('Error toggling trust:', err);
+    }
+  };
+
   const approveUser = async (userId: string) => {
     try {
       const response = await fetch(`/api/admin/users/${userId}/approve`, {
@@ -275,14 +292,21 @@ export const AdminDashboard: React.FC = () => {
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    {user.isAdmin ? (
-                      <span className="flex items-center gap-1.5 text-primary text-xs font-bold bg-primary/10 px-3 py-1 rounded-full w-fit border border-primary/20">
-                        <ShieldAlert className="w-3.5 h-3.5" />
-                        Admin
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground text-xs font-bold">Standard</span>
-                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {user.isAdmin ? (
+                        <span className="flex items-center gap-1.5 text-primary text-xs font-bold bg-primary/10 px-3 py-1 rounded-full w-fit border border-primary/20">
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          Admin
+                        </span>
+                      ) : user.isTrusted ? (
+                        <span className="flex items-center gap-1.5 text-sky-400 text-xs font-bold bg-sky-400/10 px-3 py-1 rounded-full w-fit border border-sky-400/20">
+                          <Shield className="w-3.5 h-3.5" />
+                          Trusted
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs font-bold">Standard</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-xs font-medium text-muted-foreground">
                     <div className="flex items-center gap-2">
@@ -298,6 +322,19 @@ export const AdminDashboard: React.FC = () => {
                           className="bg-emerald-500 text-white px-4 py-1.5 rounded-xl text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
                         >
                           Approve
+                        </button>
+                      )}
+                      {!user.isAdmin && (
+                        <button
+                          onClick={() => toggleTrust(user.id)}
+                          className={cn(
+                            "px-4 py-1.5 rounded-xl text-xs font-black transition-all",
+                            user.isTrusted
+                              ? "bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 border border-sky-400/20"
+                              : "bg-white/5 text-muted-foreground hover:bg-white/10 border border-white/10"
+                          )}
+                        >
+                          {user.isTrusted ? 'Untrust' : 'Trust'}
                         </button>
                       )}
                       {!user.isAdmin && (

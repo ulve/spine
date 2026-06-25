@@ -11,10 +11,11 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { ShelfPage } from './pages/ShelfPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-const PrivateRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({ children, adminOnly }) => {
+const PrivateRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean; trustedOnly?: boolean }> = ({ children, adminOnly, trustedOnly }) => {
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" />;
   if (adminOnly && !user?.isAdmin) return <Navigate to="/" />;
+  if (trustedOnly && !user?.isAdmin && !user?.isTrusted) return <Navigate to="/" />;
   return <>{children}</>;
 };
 
@@ -30,7 +31,7 @@ const AppContent = () => {
         <Route path="/series" element={<PrivateRoute><SeriesPage /></PrivateRoute>} />
         <Route path="/tags" element={<PrivateRoute><TagsPage /></PrivateRoute>} />
         <Route path="/shelf/:id" element={<PrivateRoute><ShelfPage /></PrivateRoute>} />
-        <Route path="/upload" element={<PrivateRoute adminOnly><UploadPage /></PrivateRoute>} />
+        <Route path="/upload" element={<PrivateRoute trustedOnly><UploadPage /></PrivateRoute>} />
         <Route path="/admin" element={<PrivateRoute adminOnly><AdminDashboard /></PrivateRoute>} />
       </Routes>
     </Layout>
