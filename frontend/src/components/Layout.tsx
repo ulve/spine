@@ -52,8 +52,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
     { name: 'Tags', path: '/tags', icon: Tags },
   ];
 
-  if (isAuthenticated && user?.isAdmin) {
+  if (isAuthenticated && (user?.isAdmin || user?.isTrusted)) {
     navItems.push({ name: 'Upload', path: '/upload', icon: Upload });
+  }
+  if (isAuthenticated && user?.isAdmin) {
     navItems.push({ name: 'Admin', path: '/admin', icon: Shield });
   }
 

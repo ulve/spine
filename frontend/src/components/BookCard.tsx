@@ -18,7 +18,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, onDelete, vi
   const [isEditing, setIsEditing] = useState(false);
   const [isShowingDetails, setIsShowingDetails] = useState(false);
   const { isAuthenticated, user } = useAuth();
-  const canEdit = isAuthenticated && !!user?.isAdmin;
+  const canEdit = isAuthenticated && (!!user?.isAdmin || !!user?.isTrusted);
   const authors = book.authors.map(a => a.name).join(', ');
   
   const coverUrl = book.coverPath ? `/api/covers/${book.coverPath.split('/').pop()}` : null;

@@ -466,7 +466,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
               </button>
             )}
 
-            {user?.isAdmin && !confirmDelete && (
+            {(user?.isAdmin || user?.isTrusted) && !confirmDelete && (
               <button
                 onClick={() => setConfirmDelete(true)}
                 className="bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 px-4 py-3 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2"
@@ -476,7 +476,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
               </button>
             )}
 
-            {user?.isAdmin && confirmDelete && (
+            {(user?.isAdmin || user?.isTrusted) && confirmDelete && (
               <div className="flex items-center gap-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl px-4 py-3">
                 <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                 <span className="text-xs font-bold text-rose-400">Delete this book permanently?</span>
