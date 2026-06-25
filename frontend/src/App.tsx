@@ -12,7 +12,8 @@ import { ShelfPage } from './pages/ShelfPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean; trustedOnly?: boolean }> = ({ children, adminOnly, trustedOnly }) => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isInitialized, user } = useAuth();
+  if (!isInitialized) return null;
   if (!isAuthenticated) return <Navigate to="/login" />;
   if (adminOnly && !user?.isAdmin) return <Navigate to="/" />;
   if (trustedOnly && !user?.isAdmin && !user?.isTrusted) return <Navigate to="/" />;
