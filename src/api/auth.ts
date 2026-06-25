@@ -65,13 +65,18 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction) =>
     next();
 };
 
-// Middleware to check for Admin or Trusted user
-export const requireTrusted = (req: Request, res: Response, next: NextFunction) => {
+// Middleware to check for Admin or Trusted user — always reads from DB so changes take effect immediately
+export const requireTrusted = async (req: Request, res: Response, next: NextFunction) => {
     const user = (req as AuthenticatedRequest).user;
-    if (!user || (!user.isAdmin && !user.isTrusted)) {
-        return res.status(403).json({ error: 'Trusted user access required' });
+    if (!user) return res.status(403).json({ error: 'Trusted user access required' });
+    if (user.isAdmin) return next();
+    try {
+        const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { isTrusted: true } });
+        if (!dbUser?.isTrusted) return res.status(403).json({ error: 'Trusted user access required' });
+        next();
+    } catch {
+        res.status(500).json({ error: 'Internal server error' });
     }
-    next();
 };
 
 const loginLimiter = rateLimit({

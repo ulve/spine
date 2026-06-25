@@ -269,7 +269,7 @@ export const AdminDashboard: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-border/50">
               {users.map((user) => (
-                <tr key={user.id} className="hover:bg-white/5 transition-colors group">
+                <tr key={user.id} className="hover:bg-white/5 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black uppercase">
@@ -315,7 +315,7 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-2">
                       {!user.isApproved && (
                         <button
                           onClick={() => approveUser(user.id)}
@@ -465,7 +465,7 @@ export const AdminDashboard: React.FC = () => {
         ) : (
           <div className="divide-y divide-border/50">
             {shelves.map(shelf => (
-              <div key={shelf.id} className="p-5 flex items-start gap-4 hover:bg-white/5 transition-colors group">
+              <div key={shelf.id} className="p-5 flex items-start gap-4 hover:bg-white/5 transition-colors">
                 {/* Background preview */}
                 <div
                   className="w-16 h-16 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-white/10 relative cursor-pointer"
@@ -476,7 +476,7 @@ export const AdminDashboard: React.FC = () => {
                   {bgUploading === shelf.id ? (
                     <Loader2 className="w-5 h-5 animate-spin text-white" />
                   ) : (
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
                       <Image className="w-5 h-5 text-white" />
                     </div>
                   )}
@@ -496,7 +496,7 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-2">
                   <button onClick={() => openEditShelf(shelf)} className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-all" title="Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
