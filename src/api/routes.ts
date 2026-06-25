@@ -552,6 +552,25 @@ router.get('/books/:id', attachOptionalUser, async (req: Request, res: Response)
   }
 });
 
+router.get('/books/:id/spine', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const book = await prisma.book.findUnique({ where: { id }, select: { filePath: true } });
+    if (!book) return res.status(404).json({ error: 'Book not found' });
+
+    const spinePath = book.filePath.replace(/\.(epub|pdf)$/i, '.json');
+    if (!(await fs.pathExists(spinePath))) {
+      return res.status(404).json({ error: 'Spine data not found' });
+    }
+
+    const spineData = await fs.readJson(spinePath);
+    res.json(spineData);
+  } catch (error) {
+    console.error('Get spine error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/authors', async (_req: Request, res: Response) => {
   try {
     const authors = await prisma.author.findMany({
@@ -716,6 +735,26 @@ router.post('/books/:id/cover', authenticateToken, requireAdmin, uploadCover.sin
     res.json(updatedBook);
   } catch (error) {
     console.error('Cover upload error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/books/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const book = await prisma.book.findUnique({ where: { id } });
+    if (!book) return res.status(404).json({ error: 'Book not found' });
+
+    await prisma.readingStatus.deleteMany({ where: { bookId: id } });
+    await prisma.review.deleteMany({ where: { bookId: id } });
+    await prisma.book.delete({ where: { id } });
+
+    await fs.remove(book.filePath).catch(() => {});
+    if (book.coverPath) await fs.remove(book.coverPath).catch(() => {});
+
+    res.status(204).end();
+  } catch (error) {
+    console.error('Delete book error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

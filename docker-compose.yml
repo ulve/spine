@@ -9,6 +9,7 @@ services:
     environment:
       - DATABASE_URL=file:/app/data/app.db
       - PORT=3000
+      # - SITE_PASSWORD=your-secret-here
     volumes:
       - ./data:/app/data
       - ./books:/app/books

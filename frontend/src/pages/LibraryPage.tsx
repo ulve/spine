@@ -308,6 +308,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ searchQuery = '' }) =>
                     book={item.book}
                     viewMode={viewMode}
                     onUpdate={updated => setBooks(prev => prev.map(b => b.id === updated.id ? updated : b))}
+                    onDelete={id => setBooks(prev => prev.filter(b => b.id !== id))}
                   />
                 </motion.div>
               )];
@@ -325,6 +326,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ searchQuery = '' }) =>
                     book={book}
                     viewMode={viewMode}
                     onUpdate={updated => setBooks(prev => prev.map(b => b.id === updated.id ? updated : b))}
+                    onDelete={id => setBooks(prev => prev.filter(b => b.id !== id))}
                   />
                 </motion.div>
               ));

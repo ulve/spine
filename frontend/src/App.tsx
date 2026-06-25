@@ -25,27 +25,13 @@ const AppContent = () => {
     <Layout onSearch={setSearchQuery}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<LibraryPage searchQuery={searchQuery} />} />
-        <Route path="/authors" element={<AuthorsPage />} />
-        <Route path="/series" element={<SeriesPage />} />
-        <Route path="/tags" element={<TagsPage />} />
-        <Route path="/shelf/:id" element={<ShelfPage />} />
-        <Route 
-          path="/upload" 
-          element={
-            <PrivateRoute adminOnly>
-              <UploadPage />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="/admin" 
-          element={
-            <PrivateRoute adminOnly>
-              <AdminDashboard />
-            </PrivateRoute>
-          } 
-        />
+        <Route path="/" element={<PrivateRoute><LibraryPage searchQuery={searchQuery} /></PrivateRoute>} />
+        <Route path="/authors" element={<PrivateRoute><AuthorsPage /></PrivateRoute>} />
+        <Route path="/series" element={<PrivateRoute><SeriesPage /></PrivateRoute>} />
+        <Route path="/tags" element={<PrivateRoute><TagsPage /></PrivateRoute>} />
+        <Route path="/shelf/:id" element={<PrivateRoute><ShelfPage /></PrivateRoute>} />
+        <Route path="/upload" element={<PrivateRoute adminOnly><UploadPage /></PrivateRoute>} />
+        <Route path="/admin" element={<PrivateRoute adminOnly><AdminDashboard /></PrivateRoute>} />
       </Routes>
     </Layout>
   );

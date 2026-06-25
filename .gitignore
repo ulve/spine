@@ -22,4 +22,7 @@ Thumbs.db
 docker-compose.override.yml
 .codex
 .gemini/
+.agents/
 prisma/prisma/
+
+

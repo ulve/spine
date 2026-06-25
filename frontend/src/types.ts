@@ -70,6 +70,58 @@ export interface Book {
   reviews?: Review[];
 }
 
+export interface ChapterSummary {
+  chapter: number;
+  title: string;
+  summary: string;
+  pov: string;
+  locations: string[];
+  role: string;
+}
+
+export interface SpineCharacter {
+  name: string;
+  description: string;
+  role: 'protagonist' | 'antagonist' | 'supporting' | 'minor';
+  arc: string;
+  chapters: number[];
+}
+
+export interface SpineRelationship {
+  characters: [string, string];
+  type: string;
+  dynamic: string;
+  evolution: string;
+}
+
+export interface Mystery {
+  question: string;
+  introduced_chapter: number;
+  status: 'open' | 'resolved' | 'partial';
+  resolution: string | null;
+}
+
+export interface WorldLocation {
+  name: string;
+  description: string;
+  chapters: number[];
+}
+
+export interface SpineData {
+  book_id: string;
+  title: string;
+  author: string;
+  processed_at: string;
+  chapter_summaries: ChapterSummary[];
+  plot_summary: string;
+  characters: SpineCharacter[];
+  themes: string[];
+  topics: string[];
+  relationships: SpineRelationship[];
+  mysteries: Mystery[];
+  world: WorldLocation[];
+}
+
 export interface NavShelf {
   id: string;
   name: string;

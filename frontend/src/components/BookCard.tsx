@@ -10,10 +10,11 @@ import { BookDetailModal } from './BookDetailModal';
 interface BookCardProps {
   book: BookType;
   onUpdate?: (updatedBook: BookType) => void;
+  onDelete?: (bookId: string) => void;
   viewMode?: 'grid' | 'list';
 }
 
-export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = 'grid' }) => {
+export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, onDelete, viewMode = 'grid' }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isShowingDetails, setIsShowingDetails] = useState(false);
   const { isAuthenticated, user } = useAuth();
@@ -105,9 +106,10 @@ export const BookCard: React.FC<BookCardProps> = ({ book, onUpdate, viewMode = '
             />
           )}
           {isShowingDetails && (
-            <BookDetailModal 
-              book={book} 
-              onClose={() => setIsShowingDetails(false)} 
+            <BookDetailModal
+              book={book}
+              onClose={() => setIsShowingDetails(false)}
+              onDelete={onDelete}
             />
           )}
         </AnimatePresence>

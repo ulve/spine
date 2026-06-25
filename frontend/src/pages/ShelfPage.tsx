@@ -306,6 +306,7 @@ export const ShelfPage: React.FC = () => {
                 book={book}
                 viewMode={viewMode}
                 onUpdate={updated => setBooks(prev => prev.map(b => b.id === updated.id ? updated : b))}
+                onDelete={id => setBooks(prev => prev.filter(b => b.id !== id))}
               />
             </motion.div>
           ))}

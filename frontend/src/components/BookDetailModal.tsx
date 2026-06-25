@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Book, Review, ReadingStatus } from '../types';
-import { 
-  X, 
-  Book as BookIcon, 
-  Hash, 
-  ExternalLink, 
-  Download, 
+import { motion } from 'framer-motion';
+import { Book, Review, ReadingStatus, SpineData } from '../types';
+import {
+  X,
+  Book as BookIcon,
+  Hash,
+  ExternalLink,
+  Download,
   Calendar,
   Tag as TagIcon,
   User,
@@ -18,14 +18,19 @@ import {
   Ban,
   Bookmark,
   Send,
-  Loader2
+  Loader2,
+  Layers,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import { SpineView } from './SpineView';
 
 interface BookDetailModalProps {
   book: Book;
   onClose: () => void;
+  onDelete?: (bookId: string) => void;
 }
 
 const statusOptions = [
@@ -35,9 +40,11 @@ const statusOptions = [
   { value: 'ABANDONED', label: 'Abandoned', icon: Ban, color: 'text-rose-400', bg: 'bg-rose-400/10' },
 ];
 
-export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialBook, onClose }) => {
+export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialBook, onClose, onDelete }) => {
   const { token, user, isAuthenticated } = useAuth();
   const [book, setBook] = useState(initialBook);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -50,6 +57,8 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
   const [comment, setComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [loadingReviews, setLoadingReviews] = useState(true);
+  const [spineData, setSpineData] = useState<SpineData | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'spine' | 'reviews'>('overview');
 
   const authors = book.authors.map(a => a.name).join(', ');
   const coverUrl = book.coverPath ? `/api/covers/${book.coverPath.split('/').pop()}` : null;
@@ -61,10 +70,11 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
   const fetchBookData = async () => {
     try {
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      
-      const [bookRes, reviewsRes] = await Promise.all([
+
+      const [bookRes, reviewsRes, spineRes] = await Promise.all([
         fetch(`/api/books/${initialBook.id}`, { headers }),
-        fetch(`/api/books/${initialBook.id}/reviews`)
+        fetch(`/api/books/${initialBook.id}/reviews`),
+        fetch(`/api/books/${initialBook.id}/spine`)
       ]);
 
       const bookData = await bookRes.json();
@@ -75,12 +85,17 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
 
       setBook(bookData);
       setReviews(reviewsData);
-      
+
+      if (spineRes.ok) {
+        const spineJson = await spineRes.json();
+        setSpineData(spineJson);
+      }
+
       if (user && bookData.statuses) {
           const status = bookData.statuses.find((s: ReadingStatus) => s.userId === user.id);
           if (status) setUserStatus(status.status);
       }
-      
+
       if (user && bookData.reviews) {
           const review = bookData.reviews.find((r: Review) => r.userId === user.id);
           if (review) {
@@ -145,6 +160,26 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
       console.error('Error submitting review:', err);
     } finally {
       setSubmittingReview(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete book');
+      }
+      onDelete?.(book.id);
+      onClose();
+    } catch (err) {
+      console.error('Error deleting book:', err);
+      setDeleting(false);
+      setConfirmDelete(false);
     }
   };
 
@@ -227,149 +262,184 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
                 <span>{authors}</span>
               </div>
             </div>
-            <button 
-              onClick={onClose} 
+            <button
+              onClick={onClose}
               className="p-2 hover:bg-white/10 rounded-full transition-colors text-muted-foreground hover:text-white shrink-0"
             >
               <X className="w-6 h-6" />
             </button>
           </div>
 
+          {/* Tab bar */}
+          <div className="flex gap-1 px-6 pt-4 pb-0 border-b border-white/10">
+            {([
+              { id: 'overview', label: 'Overview', icon: BookIcon },
+              ...(spineData ? [{ id: 'spine', label: 'Spine', icon: Layers }] : []),
+              { id: 'reviews', label: `Reviews (${reviews.length})`, icon: MessageSquare },
+            ] as { id: 'overview' | 'spine' | 'reviews'; label: string; icon: React.ElementType }[]).map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-widest border-b-2 -mb-px transition-colors',
+                    activeTab === tab.id
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-white'
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="flex-1 overflow-y-auto relative">
             <div className="p-8 space-y-12">
-              {/* Metadata & Summary */}
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {book.series && (
+              {/* Overview Tab */}
+              {activeTab === 'overview' && (
+                <div className="space-y-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {book.series && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Series</span>
+                        <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-4 py-2 rounded-xl border border-primary/10 w-fit">
+                          <Hash className="w-4 h-4" />
+                          {book.series.name} {book.seriesNumber && `#${book.seriesNumber}`}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-2">
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Series</span>
-                      <div className="flex items-center gap-2 text-sm font-bold text-primary bg-primary/5 px-4 py-2 rounded-xl border border-primary/10 w-fit">
-                        <Hash className="w-4 h-4" />
-                        {book.series.name} {book.seriesNumber && `#${book.seriesNumber}`}
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Added Date</span>
+                      <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground bg-white/5 px-4 py-2 rounded-xl border border-white/5 w-fit">
+                        <Calendar className="w-4 h-4" />
+                        {new Date(book.addedDate).toISOString().split('T')[0]}
                       </div>
                     </div>
-                  )}
-                  
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Added Date</span>
-                    <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground bg-white/5 px-4 py-2 rounded-xl border border-white/5 w-fit">
-                      <Calendar className="w-4 h-4" />
-                      {new Date(book.addedDate).toISOString().split('T')[0]}
+                  </div>
+
+                  <div className="space-y-3">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Summary</span>
+                    <div className="prose prose-invert prose-sm max-w-none">
+                      {book.description ? (
+                        <div
+                          className="text-muted-foreground/80 leading-relaxed text-base [&_p]:mb-3 [&_p:last-child]:mb-0 [&_br]:block [&_b]:text-foreground/90 [&_i]:italic [&_em]:italic [&_strong]:text-foreground/90"
+                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(book.description) }}
+                        />
+                      ) : (
+                        <p className="text-muted-foreground/40 italic text-base">No description available for this book.</p>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                <div className="space-y-3">
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Summary</span>
-                  <div className="prose prose-invert prose-sm max-w-none">
-                    {book.description ? (
-                      <div
-                        className="text-muted-foreground/80 leading-relaxed text-base [&_p]:mb-3 [&_p:last-child]:mb-0 [&_br]:block [&_b]:text-foreground/90 [&_i]:italic [&_em]:italic [&_strong]:text-foreground/90"
-                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(book.description) }}
+                  {book.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {book.tags.map(tag => (
+                        <span
+                          key={tag.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
+                        >
+                          <TagIcon className="w-3 h-3" />
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Spine Tab */}
+              {activeTab === 'spine' && spineData && (
+                <SpineView data={spineData} />
+              )}
+
+              {/* Reviews Tab */}
+              {activeTab === 'reviews' && (
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                      <MessageSquare className="w-5 h-5 text-primary" />
+                      Reviews & Comments
+                    </h3>
+                    <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold">
+                      {reviews.length} total
+                    </div>
+                  </div>
+
+                  {isAuthenticated && (
+                    <form onSubmit={handleReviewSubmit} className="bg-white/5 p-6 rounded-2xl border border-white/5 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-muted-foreground mr-2">Your Rating:</span>
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setRating(s)}
+                            className="transition-transform active:scale-125"
+                          >
+                            <Star className={cn("w-5 h-5", s <= rating ? "fill-primary text-primary" : "text-white/10")} />
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        placeholder="Leave a comment..."
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition-all resize-none min-h-[100px]"
                       />
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={submittingReview || (!rating && !comment)}
+                          className="bg-primary text-primary-foreground px-6 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all"
+                        >
+                          {submittingReview ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                          Post Review
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  <div className="space-y-4">
+                    {loadingReviews ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
+                      </div>
+                    ) : reviews.length > 0 ? (
+                      reviews.map((rev) => (
+                        <div key={rev.id} className="p-6 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-black uppercase">
+                                {rev.user?.username.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold">{rev.user?.username}</p>
+                                <p className="text-[10px] text-muted-foreground uppercase font-medium">{new Date(rev.createdAt).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            {rev.rating && (
+                              <div className="flex items-center gap-1 bg-primary/10 px-3 py-1 rounded-full">
+                                <Star className="w-3 h-3 fill-primary text-primary" />
+                                <span className="text-xs font-black text-primary">{rev.rating}</span>
+                              </div>
+                            )}
+                          </div>
+                          {rev.comment && <p className="text-sm text-muted-foreground/90 leading-relaxed">{rev.comment}</p>}
+                        </div>
+                      ))
                     ) : (
-                      <p className="text-muted-foreground/40 italic text-base">No description available for this book.</p>
+                      <div className="text-center py-12 bg-white/5 rounded-3xl border border-dashed border-white/10">
+                        <MessageSquare className="w-8 h-8 mx-auto text-muted-foreground/20 mb-3" />
+                        <p className="text-sm text-muted-foreground">No reviews yet. Be the first to share your thoughts!</p>
+                      </div>
                     )}
                   </div>
                 </div>
-
-                {book.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {book.tags.map(tag => (
-                      <span 
-                        key={tag.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
-                      >
-                        <TagIcon className="w-3 h-3" />
-                        {tag.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Reviews Section */}
-              <div className="space-y-8 pt-8 border-t border-white/10">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                    <MessageSquare className="w-5 h-5 text-primary" />
-                    Reviews & Comments
-                  </h3>
-                  <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold">
-                    {reviews.length} total
-                  </div>
-                </div>
-
-                {isAuthenticated && (
-                  <form onSubmit={handleReviewSubmit} className="bg-white/5 p-6 rounded-2xl border border-white/5 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-muted-foreground mr-2">Your Rating:</span>
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setRating(s)}
-                          className="transition-transform active:scale-125"
-                        >
-                          <Star className={cn("w-5 h-5", s <= rating ? "fill-primary text-primary" : "text-white/10")} />
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      placeholder="Leave a comment..."
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition-all resize-none min-h-[100px]"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={submittingReview || (!rating && !comment)}
-                        className="bg-primary text-primary-foreground px-6 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all"
-                      >
-                        {submittingReview ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                        Post Review
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-                <div className="space-y-4">
-                  {loadingReviews ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
-                    </div>
-                  ) : reviews.length > 0 ? (
-                    reviews.map((rev) => (
-                      <div key={rev.id} className="p-6 bg-white/5 rounded-2xl border border-white/5 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-black uppercase">
-                              {rev.user?.username.charAt(0)}
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold">{rev.user?.username}</p>
-                              <p className="text-[10px] text-muted-foreground uppercase font-medium">{new Date(rev.createdAt).toLocaleDateString()}</p>
-                            </div>
-                          </div>
-                          {rev.rating && (
-                            <div className="flex items-center gap-1 bg-primary/10 px-3 py-1 rounded-full">
-                              <Star className="w-3 h-3 fill-primary text-primary" />
-                              <span className="text-xs font-black text-primary">{rev.rating}</span>
-                            </div>
-                          )}
-                        </div>
-                        {rev.comment && <p className="text-sm text-muted-foreground/90 leading-relaxed">{rev.comment}</p>}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12 bg-white/5 rounded-3xl border border-dashed border-white/10">
-                      <MessageSquare className="w-8 h-8 mx-auto text-muted-foreground/20 mb-3" />
-                      <p className="text-sm text-muted-foreground">No reviews yet. Be the first to share your thoughts!</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -385,7 +455,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
               <Download className="w-5 h-5" />
               Download Book
             </button>
-            
+
             {book.goodreadsLink && (
               <button
                 onClick={openGoodreads}
@@ -394,6 +464,37 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book: initialB
                 <ExternalLink className="w-5 h-5" />
                 Goodreads Page
               </button>
+            )}
+
+            {user?.isAdmin && !confirmDelete && (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 px-4 py-3 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            )}
+
+            {user?.isAdmin && confirmDelete && (
+              <div className="flex items-center gap-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl px-4 py-3">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="text-xs font-bold text-rose-400">Delete this book permanently?</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="bg-rose-500 text-white px-3 py-1.5 rounded-xl text-xs font-black hover:bg-rose-600 disabled:opacity-50 transition-all flex items-center gap-1.5"
+                >
+                  {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="text-muted-foreground hover:text-white text-xs font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             )}
           </div>
         </div>
